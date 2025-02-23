@@ -7,25 +7,24 @@ const API_BASE_URL = 'https://email.jumpintojob.com/api/v1';
 const CreateSmtpModal = ({ isOpen, onClose, companyId, onSmtpCreated }) => {
   const navigate = useNavigate();
   const [formData, setFormData] = useState({
-    company_id: parseInt(companyId),
     host: '',
     port: '',
     from_email: '',
     from_name: '',
     username: '',
     password: '',
-    encryption: ''
+    encryption: 'tls'
   });
-  const [isLoading, setIsLoading] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const getAuthToken = () => {
     try {
       const userData = localStorage.getItem('user');
       if (!userData) throw new Error('Authentication required');
-      
+
       const parsedUser = JSON.parse(userData);
       const token = parsedUser.token || parsedUser.access_token;
-      
+
       if (!token) throw new Error('Invalid token');
       return token;
     } catch (error) {
@@ -36,7 +35,7 @@ const CreateSmtpModal = ({ isOpen, onClose, companyId, onSmtpCreated }) => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    setIsLoading(true);
+    setIsSubmitting(true);
 
     try {
       const token = getAuthToken();
@@ -49,7 +48,10 @@ const CreateSmtpModal = ({ isOpen, onClose, companyId, onSmtpCreated }) => {
           'Content-Type': 'application/json',
           'Accept': 'application/json'
         },
-        body: JSON.stringify(formData)
+        body: JSON.stringify({
+          ...formData,
+          company_id: parseInt(companyId)
+        })
       });
 
       const data = await response.json();
@@ -65,7 +67,9 @@ const CreateSmtpModal = ({ isOpen, onClose, companyId, onSmtpCreated }) => {
       }
 
       toast.success('SMTP configuration created successfully');
-      onSmtpCreated(); // Refresh SMTP list
+      if (onSmtpCreated) {
+        await onSmtpCreated();
+      }
       onClose();
     } catch (error) {
       console.error('SMTP creation error:', error);
@@ -74,7 +78,7 @@ const CreateSmtpModal = ({ isOpen, onClose, companyId, onSmtpCreated }) => {
         navigate('/login');
       }
     } finally {
-      setIsLoading(false);
+      setIsSubmitting(false);
     }
   };
 
@@ -85,7 +89,7 @@ const CreateSmtpModal = ({ isOpen, onClose, companyId, onSmtpCreated }) => {
       <div className="bg-white rounded-lg p-6 w-full max-w-md">
         <div className="flex justify-between items-center mb-4">
           <h2 className="text-xl font-bold">Create SMTP Configuration</h2>
-          <button 
+          <button
             onClick={onClose}
             className="text-gray-500 hover:text-gray-700"
           >
@@ -185,16 +189,16 @@ const CreateSmtpModal = ({ isOpen, onClose, companyId, onSmtpCreated }) => {
               type="button"
               onClick={onClose}
               className="px-4 py-2 text-gray-600 hover:text-gray-800"
-              disabled={isLoading}
+              disabled={isSubmitting}
             >
               Cancel
             </button>
             <button
               type="submit"
-              disabled={isLoading}
+              disabled={isSubmitting}
               className="px-4 py-2 bg-purple-500 text-white rounded hover:bg-purple-600 disabled:bg-purple-300"
             >
-              {isLoading ? 'Creating...' : 'Create SMTP'}
+              {isSubmitting ? 'Creating...' : 'Create SMTP'}
             </button>
           </div>
         </form>

@@ -22,6 +22,12 @@ const Company = () => {
     const [selectedCompany, setSelectedCompany] = useState(null);
     const [isLoading, setIsLoading] = useState(false);
     const [error, setError] = useState(null);
+    const [currentPage, setCurrentPage] = useState(1);
+    const [totalPages, setTotalPages] = useState(0);
+    const [itemsPerPage, setItemsPerPage] = useState(() => {
+        const savedItemsPerPage = localStorage.getItem('itemsPerPage');
+        return savedItemsPerPage ? parseInt(savedItemsPerPage) : 10;
+    });
     const navigate = useNavigate();
     const { user } = useAuth();
 
@@ -40,7 +46,7 @@ const Company = () => {
                 throw new Error('Invalid token');
             }
 
-            const response = await fetch(`${API_BASE_URL}/companies`, {
+            const response = await fetch(`${API_BASE_URL}/companies?page=${currentPage}&limit=${itemsPerPage}`, {
                 method: 'GET',
                 headers: {
                     'Authorization': `Bearer ${token}`,
@@ -49,17 +55,28 @@ const Company = () => {
             });
 
             const data = await response.json();
+            console.log('API Response:', data); // Debug log
 
             if (!response.ok) {
                 throw new Error(data.message || 'Failed to fetch companies');
             }
 
-            setCompanies(data.result || []);
+            // Update to match the actual API response structure
+            if (data.result && Array.isArray(data.result)) {
+                setCompanies(data.result);
+                setTotalPages(data.meta?.totalPage || 1);
+            } else {
+                console.error('Unexpected API response structure:', data);
+                throw new Error('Invalid API response format');
+            }
+            
             setError(null);
         } catch (error) {
             console.error('Fetch error:', error);
             setError(error.message);
             toast.error(error.message);
+            setCompanies([]);
+            setTotalPages(0);
         } finally {
             setIsLoading(false);
         }
@@ -90,9 +107,15 @@ const Company = () => {
                 throw new Error(data.message || 'Failed to create company');
             }
 
-            toast.success(data.message || 'Company created successfully');
+            // Close modal first
             setIsModalOpen(false);
-            fetchCompanies(); // Refresh the list
+            
+            // Show success message
+            toast.success(data.message || 'Company created successfully');
+            
+            // Then refresh the companies list
+            setCurrentPage(1);
+            fetchCompanies();
         } catch (error) {
             toast.error(error.message);
         }
@@ -124,6 +147,7 @@ const Company = () => {
             }
 
             toast.success(data.message || 'Company updated successfully');
+            setCurrentPage(1); // Reset to first page
             fetchCompanies(); // Refresh the list
         } catch (error) {
             toast.error(error.message);
@@ -135,9 +159,20 @@ const Company = () => {
         setIsEditModalOpen(true);
     };
 
+    const handleItemsPerPageChange = (e) => {
+        const newItemsPerPage = parseInt(e.target.value);
+        setItemsPerPage(newItemsPerPage);
+        localStorage.setItem('itemsPerPage', newItemsPerPage.toString());
+        setCurrentPage(1); // Reset to first page when changing items per page
+    };
+
     useEffect(() => {
         fetchCompanies();
     }, []);
+
+    useEffect(() => {
+        fetchCompanies();
+    }, [currentPage, itemsPerPage]); // Add itemsPerPage as dependency
 
     useEffect(() => {
         const userData = localStorage.getItem('user');
@@ -148,97 +183,189 @@ const Company = () => {
     }, []);
 
     return (
-        <div className="min-h-screen bg-gray-50 py-6 sm:py-12">
-            <div className="relative py-3 sm:max-w-5xl sm:mx-auto">
-                <div className="absolute inset-0 bg-gradient-to-r from-blue-300 to-blue-600 shadow-lg transform -skew-y-6 sm:skew-y-0 sm:-rotate-6 sm:rounded-3xl"></div>
-                <div className="relative px-4 py-10 bg-white shadow-lg sm:rounded-3xl sm:p-20">
-                    <div className="max-w-4xl mx-auto">
-                        <div className="flex justify-between items-center mb-8">
-                            <h1 className="text-3xl font-semibold text-gray-900 flex items-center">
-                                <FontAwesomeIcon icon={faBuilding} className="mr-3 text-gray-600" />
-                                Companies
-                            </h1>
-                            <button
-                                onClick={() => setIsModalOpen(true)}
-                                className="bg-blue-500 hover:bg-blue-700 text-white font-bold py-3 px-5 rounded-md focus:outline-none focus:shadow-outline flex items-center"
-                            >
-                                <FontAwesomeIcon icon={faPlus} className="mr-2" />
-                                Add Company
-                            </button>
-                        </div>
+      <div className="">
+        <div className="">
+          <div className="flex justify-between items-start mb-2">
+            <h1 className="text-2xl font-semibold text-gray-900 flex items-center">
+              Companies
+            </h1>
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                setIsModalOpen(true);
+              }}
+              className="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-2 rounded-md focus:outline-none focus:shadow-outline flex items-center"
+            >
+              <FontAwesomeIcon icon={faPlus} className="mr-2" />
+              Add Company
+            </button>
+          </div>
 
-                        {isLoading ? (
-                            <div className="flex justify-center items-center py-8">
-                                <FontAwesomeIcon icon={faSpinner} className="animate-spin text-blue-500 text-4xl" />
-                            </div>
-                        ) : error ? (
-                            <div className="text-red-500 text-center py-4">{error}</div>
-                        ) : (
-                            <div className="bg-white shadow-md rounded-lg overflow-hidden">
-                                <table className="min-w-full divide-y divide-gray-200">
-                                    <thead className="bg-gray-50">
-                                        <tr>
-                                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Name</th>
-                                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Email</th>
-                                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Created At</th>
-                                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody className="bg-white divide-y divide-gray-200">
-                                        {companies.map((company) => (
-                                            <tr key={company.id} className="hover:bg-gray-100">
-                                                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{company.name}</td>
-                                                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{company.email}</td>
-                                                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                                                    {new Date(company.created_at).toLocaleDateString()}
-                                                </td>
-                                                <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                                                    <div className="flex space-x-2">
-                                                        <button
-                                                            onClick={() => navigate(`/dashboard/company/${company.id}`)}
-                                                            className="text-blue-600 hover:text-blue-900 flex items-center"
-                                                        >
-                                                            <FontAwesomeIcon icon={faEye} className="mr-1" />
-                                                            View
-                                                        </button>
-                                                        <button
-                                                            onClick={() => handleEditClick(company)}
-                                                            className="text-green-600 hover:text-green-900 flex items-center"
-                                                        >
-                                                            <FontAwesomeIcon icon={faEdit} className="mr-1" />
-                                                            Edit
-                                                        </button>
-                                                    </div>
-                                                </td>
-                                            </tr>
-                                        ))}
-                                    </tbody>
-                                </table>
-                            </div>
-                        )}
-
-                        {isModalOpen && (
-                            <AddCompanyModal
-                                isOpen={isModalOpen}
-                                onClose={() => setIsModalOpen(false)}
-                                onSubmit={handleAddCompany}
-                            />
-                        )}
-                        {isEditModalOpen && (
-                            <EditCompanyModal
-                                isOpen={isEditModalOpen}
-                                onClose={() => {
-                                    setIsEditModalOpen(false);
-                                    setSelectedCompany(null);
-                                }}
-                                onSubmit={handleEditCompany}
-                                company={selectedCompany}
-                            />
-                        )}
-                    </div>
+          {isLoading ? (
+            <div className="flex justify-center items-center py-8">
+              <FontAwesomeIcon
+                icon={faSpinner}
+                className="animate-spin text-blue-500 text-4xl"
+              />
+            </div>
+          ) : error ? (
+            <div className="text-red-500 text-center py-4">{error}</div>
+          ) : (
+            <div className="bg-white shadow-md rounded-lg overflow-hidden">
+              <div className="px-4 py-2 border-b border-gray-200">
+                <div className="text-sm text-gray-500">
+                    {companies.length > 0 ? (
+                        `Showing ${((currentPage - 1) * itemsPerPage) + 1} to ${
+                            Math.min(currentPage * itemsPerPage, ((currentPage - 1) * itemsPerPage) + companies.length)
+                        } of ${companies.length} companies`
+                    ) : (
+                        'No companies found'
+                    )}
                 </div>
+              </div>
+              <table className="min-w-full divide-y divide-gray-200">
+                <thead className="bg-gray-50">
+                  <tr>
+                    <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">
+                      ID
+                    </th>
+                    <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">
+                      Name
+                    </th>
+                    <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">
+                      Email
+                    </th>
+                    <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">
+                      Created At
+                    </th>
+                    <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">
+                      Actions
+                    </th>
+                  </tr>
+                </thead>
+                <tbody className="bg-white divide-y divide-gray-200">
+  {companies.map((company) => (
+    <tr
+      key={company.id}
+      className="hover:bg-gray-100 cursor-pointer"
+      onClick={() => navigate(`/dashboard/company/${company.id}`)}
+    >
+      <td className="px-4 py-2 whitespace-nowrap text-sm text-gray-900">
+        {company.id}
+      </td>
+      <td className="px-4 py-2 whitespace-nowrap text-sm text-gray-900">
+        {company.name}
+      </td>
+      <td className="px-4 py-2 whitespace-nowrap text-sm text-gray-900">
+        {company.email}
+      </td>
+      <td className="px-4 py-2 whitespace-nowrap text-sm text-gray-900">
+        {new Date(company.created_at).toLocaleDateString()}
+      </td>
+      <td className="px-4 py-2 whitespace-nowrap text-sm font-medium">
+        <div className="">
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              handleEditClick(company);
+            }}
+            className="text-green-600 hover:text-green-900 flex items-center"
+          >
+            <FontAwesomeIcon icon={faEdit} className="mr-1" />
+            Edit
+          </button>
+        </div>
+      </td>
+    </tr>
+  ))}
+</tbody>
+              </table>
+              <div className="px-6 py-4 bg-gray-50 border-t border-gray-200">
+    <div className="flex items-center justify-between">
+        <div className="flex items-center space-x-4">
+            <span className="text-sm text-gray-700">
+                page {currentPage} of {totalPages}
+            </span>
+            <div className="flex items-center space-x-2">
+                <label htmlFor="itemsPerPage" className="text-sm text-gray-600">
+                    Show per page:
+                </label>
+                <select
+                    id="itemsPerPage"
+                    value={itemsPerPage}
+                    onChange={handleItemsPerPageChange}
+                    className="border border-gray-300 rounded-md text-sm py-1 px-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                >
+                    <option value="10">10</option>
+                    <option value="20">20</option>
+                    <option value="50">50</option>
+                </select>
             </div>
         </div>
+        <div className="flex items-center space-x-2">
+            <button
+                onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
+                disabled={currentPage === 1}
+                className={`px-4 py-2 text-sm font-medium rounded-md ${
+                    currentPage === 1
+                        ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                        : 'bg-white text-gray-700 hover:bg-gray-50 border border-gray-300'
+                }`}
+            >
+                Previous
+            </button>
+            <div className="flex items-center space-x-2">
+                {[...Array(totalPages)].map((_, index) => (
+                    <button
+                        key={index + 1}
+                        onClick={() => setCurrentPage(index + 1)}
+                        className={`px-4 py-2 text-sm font-medium rounded-md ${
+                            currentPage === index + 1
+                                ? 'bg-blue-500 text-white'
+                                : 'bg-white text-gray-700 hover:bg-gray-50 border border-gray-300'
+                        }`}
+                    >
+                        {index + 1}
+                    </button>
+                ))}
+            </div>
+            <button
+                onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
+                disabled={currentPage === totalPages}
+                className={`px-4 py-2 text-sm font-medium rounded-md ${
+                    currentPage === totalPages
+                        ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                        : 'bg-white text-gray-700 hover:bg-gray-50 border border-gray-300'
+                }`}
+            >
+                Next
+            </button>
+        </div>
+    </div>
+</div>
+            </div>
+          )}
+
+          {isModalOpen && (
+            <AddCompanyModal
+              isOpen={isModalOpen}
+              onClose={() => setIsModalOpen(false)}
+              onSubmit={handleAddCompany}
+            />
+          )}
+          {isEditModalOpen && (
+            <EditCompanyModal
+              isOpen={isEditModalOpen}
+              onClose={() => {
+                setIsEditModalOpen(false);
+                setSelectedCompany(null);
+              }}
+              onSubmit={handleEditCompany}
+              company={selectedCompany}
+            />
+          )}
+        </div>
+      </div>
     );
 };
 

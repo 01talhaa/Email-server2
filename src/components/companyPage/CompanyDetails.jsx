@@ -32,6 +32,53 @@ const getAuthToken = () => {
     return token;
 };
 
+const PaginationControls = ({ tab, pagination, onPageChange, onItemsPerPageChange }) => {
+    const { currentPage, totalPages, itemsPerPage } = pagination[tab];
+
+    return (
+        <div className="px-2 py-2 bg-gray-50 border-t border-gray-200">
+            <div className="flex items-center justify-between">
+                <div className="flex items-center space-x-4">
+                    <span className="text-sm text-gray-700">
+                        Page {currentPage} of {totalPages}
+                    </span>
+                    <select
+                        value={itemsPerPage}
+                        onChange={(e) => onItemsPerPageChange(tab, e.target.value)}
+                        className="border border-gray-300 rounded-md text-sm py-1 px-2"
+                    >
+                        <option value="10">10</option>
+                        <option value="20">20</option>
+                        <option value="50">50</option>
+                    </select>
+                </div>
+                <div className="flex items-center space-x-2">
+                    <button
+                        onClick={() => onPageChange(tab, currentPage - 1)}
+                        disabled={currentPage === 1}
+                        className={`px-3 py-1 rounded-md text-sm ${currentPage === 1
+                            ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                            : 'bg-white text-gray-700 hover:bg-gray-50 border border-gray-300'
+                            }`}
+                    >
+                        Previous
+                    </button>
+                    <button
+                        onClick={() => onPageChange(tab, currentPage + 1)}
+                        disabled={currentPage === totalPages}
+                        className={`px-3 py-1 rounded-md text-sm ${currentPage === totalPages
+                            ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                            : 'bg-white text-gray-700 hover:bg-gray-50 border border-gray-300'
+                            }`}
+                    >
+                        Next
+                    </button>
+                </div>
+            </div>
+        </div>
+    );
+};
+
 const CompanyDetails = () => {
     const [company, setCompany] = useState(null);
     const [isLoading, setIsLoading] = useState(true);
@@ -42,6 +89,28 @@ const CompanyDetails = () => {
     const [selectedDraft, setSelectedDraft] = useState(null);
     const [smtpConfigs, setSmtpConfigs] = useState([]);
     const [selectedSmtp, setSelectedSmtp] = useState(null);
+    const [selectedHostFilter, setSelectedHostFilter] = useState('all');
+
+    const [pagination, setPagination] = useState({
+        sent: { currentPage: 1, totalPages: 1, itemsPerPage: 10 },
+        inbox: { currentPage: 1, totalPages: 1, itemsPerPage: 10 },
+        drafts: { currentPage: 1, totalPages: 1, itemsPerPage: 10 },
+        smtp: { currentPage: 1, totalPages: 1, itemsPerPage: 10 }
+    });
+
+    const handlePageChange = (tab, newPage) => {
+        setPagination(prev => ({
+            ...prev,
+            [tab]: { ...prev[tab], currentPage: newPage }
+        }));
+    };
+
+    const handleItemsPerPageChange = (tab, newValue) => {
+        setPagination(prev => ({
+            ...prev,
+            [tab]: { ...prev[tab], itemsPerPage: parseInt(newValue), currentPage: 1 }
+        }));
+    };
 
     const { id } = useParams();
     const navigate = useNavigate();
@@ -49,6 +118,7 @@ const CompanyDetails = () => {
     const [draftLogs, setDraftLogs] = useState([]);
     const [smtpLogs, setSmtpLogs] = useState([]);
     const [drafts, setDrafts] = useState([]);
+    const [inboxEmails, setInboxEmails] = useState([]);
 
     const fetchCompanyDetails = async () => {
         setIsLoading(true);
@@ -83,47 +153,49 @@ const CompanyDetails = () => {
         }
     };
 
+    // Update fetchDrafts
     const fetchDrafts = async () => {
         try {
             const token = getAuthToken();
+            const { currentPage, itemsPerPage } = pagination.drafts;
 
-            const response = await fetch(`${API_BASE_URL}/emails?company_id=${id}`, {
+            const response = await fetch(`${API_BASE_URL}/emails?company_id=${id}&page=${currentPage}&limit=${itemsPerPage}`, {
                 headers: {
                     'Authorization': `Bearer ${token}`,
                     'Content-Type': 'application/json',
-                    'Accept': 'application/json'
                 }
             });
 
             const data = await response.json();
 
             if (!response.ok) {
-                if (response.status === 401) {
-                    localStorage.removeItem('user');
-                    navigate('/login');
-                    throw new Error('Session expired. Please login again.');
-                }
                 throw new Error(data.message || 'Failed to fetch drafts');
             }
 
-            if (data.success && data.data && Array.isArray(data.data.result)) {
+            if (data.success && data.data) {
                 setDrafts(data.data.result);
-            } else {
-                setDrafts([]);
+                setPagination(prev => ({
+                    ...prev,
+                    drafts: {
+                        ...prev.drafts,
+                        totalPages: data.data.meta.totalPage || 1
+                    }
+                }));
             }
         } catch (error) {
             console.error('Drafts fetch error:', error);
             toast.error(error.message);
-            if (error.message.includes('Authentication')) {
-                navigate('/login');
-            }
+            setDrafts([]);
         }
     };
 
+    // Update fetchSmtpConfigs
     const fetchSmtpConfigs = async () => {
         try {
             const token = getAuthToken();
-            const response = await fetch(`${API_BASE_URL}/smtp?company_id=${id}`, {
+            const { currentPage, itemsPerPage } = pagination.smtp;
+
+            const response = await fetch(`${API_BASE_URL}/smtp?company_id=${id}&page=${currentPage}&limit=${itemsPerPage}`, {
                 headers: {
                     'Authorization': `Bearer ${token}`,
                     'Content-Type': 'application/json',
@@ -136,66 +208,109 @@ const CompanyDetails = () => {
                 throw new Error(data.message || 'Failed to fetch SMTP configs');
             }
 
-            if (data.success && data.data && Array.isArray(data.data.result)) {
+            if (data.success && data.data) {
                 setSmtpConfigs(data.data.result);
+                setPagination(prev => ({
+                    ...prev,
+                    smtp: {
+                        ...prev.smtp,
+                        totalPages: data.data.meta.totalPage || 1
+                    }
+                }));
             }
         } catch (error) {
             console.error('SMTP fetch error:', error);
             toast.error(error.message);
+            setSmtpConfigs([]);
         }
     };
 
+    // First, modify the fetchSentEmails function to use the email-logs endpoint
     const fetchSentEmails = async () => {
         try {
             const token = getAuthToken();
+            const { currentPage, itemsPerPage } = pagination.sent;
 
-            // Changed method from POST to PUT
-            const response = await fetch(`${API_BASE_URL}/emails/list`, {
-                method: 'PUT', // Changed from POST to PUT
+            const response = await fetch(`${API_BASE_URL}/email-logs?company_id=${id}&page=${currentPage}&limit=${itemsPerPage}`, {
+                method: 'GET',
                 headers: {
                     'Authorization': `Bearer ${token}`,
                     'Content-Type': 'application/json',
-                    'Accept': 'application/json'
-                },
-                body: JSON.stringify({
-                    company_id: parseInt(id)
-                })
+                }
             });
 
             const data = await response.json();
-            console.log('All emails response:', data);
 
             if (!response.ok) {
-                if (response.status === 401) {
-                    localStorage.removeItem('user');
-                    navigate('/login');
-                    throw new Error('Session expired. Please login again.');
-                }
-                throw new Error(data.message || 'Failed to fetch emails');
+                throw new Error(data.message || 'Failed to fetch sent emails');
             }
 
             if (data.success && data.data && Array.isArray(data.data.result)) {
-                // Filter sent emails
-                const sentEmails = data.data.result.filter(email =>
-                    email.subject &&
-                    (Array.isArray(email.emails) || email.to_email) &&
-                    !email.is_draft // Exclude drafts
-                );
-
-                // Sort by created_at in descending order
-                sentEmails.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
-
-                console.log('Filtered sent emails:', sentEmails);
+                // Filter only successful emails for sent tab
+                const sentEmails = data.data.result.filter(email => email.status !== 'failed');
 
                 setEmailLogs(prev => ({
                     ...prev,
                     sent: sentEmails
                 }));
+
+                if (data.data?.meta) {
+                    setPagination(prev => ({
+                        ...prev,
+                        sent: {
+                            ...prev.sent,
+                            totalPages: data.data.meta.totalPage || 1
+                        }
+                    }));
+                }
             }
         } catch (error) {
             console.error('Sent emails fetch error:', error);
             toast.error(error.message);
+            setEmailLogs(prev => ({ ...prev, sent: [] }));
         }
+    };
+
+    // Update fetchInboxEmails
+    const fetchInboxEmails = async () => {
+        try {
+            const token = getAuthToken();
+            const { currentPage, itemsPerPage } = pagination.inbox;
+
+            const response = await fetch(`${API_BASE_URL}/email-logs?company_id=${id}&page=${currentPage}&limit=${itemsPerPage}`, {
+                method: 'GET',
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Content-Type': 'application/json',
+                }
+            });
+
+            const data = await response.json();
+
+            if (!response.ok) {
+                throw new Error(data.message || 'Failed to fetch inbox emails');
+            }
+
+            if (data.success && data.data) {
+                setInboxEmails(data.data.result);
+                setPagination(prev => ({
+                    ...prev,
+                    inbox: {
+                        ...prev.inbox,
+                        totalPages: data.data.meta.totalPage || 1
+                    }
+                }));
+            }
+        } catch (error) {
+            console.error('Inbox emails fetch error:', error);
+            toast.error(error.message);
+            setInboxEmails([]);
+        }
+    };
+
+    const getUniqueHosts = () => {
+        const uniqueHosts = [...new Set(smtpConfigs.map(smtp => smtp.host))];
+        return ['all', ...uniqueHosts];
     };
 
     useEffect(() => {
@@ -218,20 +333,39 @@ const CompanyDetails = () => {
     }, [id]);
 
     useEffect(() => {
-        if (id && activeTab === 'sent') {
+        if (activeTab === 'sent') {
             fetchSentEmails();
         }
     }, [id, activeTab]);
 
     useEffect(() => {
-        if (activeTab === 'drafts') {
+        if (activeTab === 'smtp') {
+            fetchSmtpConfigs();
+        }
+    }, [activeTab, id]);
+
+    useEffect(() => {
+        if (activeTab === 'sent') {
+            fetchSentEmails();
+        } else if (activeTab === 'inbox') {
+            fetchInboxEmails();
+        } else if (activeTab === 'drafts') {
             fetchDrafts();
         } else if (activeTab === 'smtp') {
             fetchSmtpConfigs();
-        } else if (activeTab === 'sent') {
-            fetchSentEmails();
         }
-    }, [activeTab]);
+    }, [
+        activeTab,
+        id,
+        pagination.sent.currentPage,
+        pagination.sent.itemsPerPage,
+        pagination.inbox.currentPage,
+        pagination.inbox.itemsPerPage,
+        pagination.drafts.currentPage,
+        pagination.drafts.itemsPerPage,
+        pagination.smtp.currentPage,
+        pagination.smtp.itemsPerPage
+    ]);
 
     const handleUseDraft = (draft) => {
         setSelectedDraft(draft);
@@ -242,9 +376,9 @@ const CompanyDetails = () => {
         switch (activeTab) {
             case 'sent':
                 return (
-                    <div className="mt-6 rounded-md shadow-md overflow-hidden">
-                        <div className="px-4 py-5 bg-white border-b border-gray-200 sm:px-6">
-                            <div className="flex justify-between items-center">
+                    <div className="">
+                        <div className="px-2 py-2 bg-white border-b border-gray-200 sm:px-6">
+                            <div className="flex justify-between ">
                                 <h3 className="text-lg leading-6 font-medium text-gray-900">
                                     <FontAwesomeIcon icon={faEnvelope} className="mr-2" />
                                     Sent Emails ({emailLogs.sent ? emailLogs.sent.length : 0})
@@ -262,33 +396,37 @@ const CompanyDetails = () => {
                             <table className="min-w-full divide-y divide-gray-200">
                                 <thead className="bg-gray-50">
                                     <tr>
-                                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Subject</th>
-                                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">To</th>
-                                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">From</th>
-                                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
-                                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Created At</th>
+                                        <th className="px-2 py-1 text-left text-xs font-medium text-gray-500 uppercase"> {/* reduced px-6 py-3 to px-2 py-1 */}
+                                            Subject
+                                        </th>
+                                        <th className="px-2 py-1 text-left text-xs font-medium text-gray-500 uppercase">To</th>
+                                        <th className="px-2 py-1 text-left text-xs font-medium text-gray-500 uppercase">From</th>
+                                        <th className="px-2 py-1 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
+                                        <th className="px-2 py-1 text-left text-xs font-medium text-gray-500 uppercase">Created At</th>
                                     </tr>
                                 </thead>
                                 <tbody className="bg-white divide-y divide-gray-200">
                                     {emailLogs.sent && emailLogs.sent.length > 0 ? (
                                         emailLogs.sent.map((email) => (
                                             <tr key={email.id}>
-                                                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 max-w-xs truncate">{email.subject}</td>
-                                                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 max-w-xs truncate">
+                                                <td className="px-2 py-1 whitespace-nowrap text-sm text-gray-900"> {/* reduced px-6 py-4 to px-2 py-1 */}
+                                                    {email.subject}
+                                                </td>
+                                                <td className="px-2 py-1 whitespace-nowrap text-sm text-gray-900 max-w-xs truncate">
                                                     {Array.isArray(email.emails) ? email.emails.join(', ') : email.to_email || '-'}
                                                 </td>
-                                                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{email.from_email || '-'}</td>
-                                                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                                                <td className="px-2 py-1 whitespace-nowrap text-sm text-gray-900">{email.from_email || '-'}</td>
+                                                <td className="px-2 py-1 whitespace-nowrap text-sm text-gray-900">
                                                     <span className="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-green-100 text-green-800">
                                                         Sent
                                                     </span>
                                                 </td>
-                                                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{new Date(email.created_at).toLocaleString()}</td>
+                                                <td className="px-2 py-1 whitespace-nowrap text-sm text-gray-900">{new Date(email.created_at).toLocaleString()}</td>
                                             </tr>
                                         ))
                                     ) : (
                                         <tr>
-                                            <td colSpan="5" className="px-6 py-4 whitespace-nowrap text-center text-sm text-gray-500">
+                                            <td colSpan="5" className="px-2 py-1 whitespace-nowrap text-center text-sm text-gray-500">
                                                 No sent emails found
                                             </td>
                                         </tr>
@@ -296,12 +434,18 @@ const CompanyDetails = () => {
                                 </tbody>
                             </table>
                         </div>
+                        <PaginationControls
+                            tab="sent"
+                            pagination={pagination}
+                            onPageChange={handlePageChange}
+                            onItemsPerPageChange={handleItemsPerPageChange}
+                        />
                     </div>
                 );
             case 'drafts':
                 return (
-                    <div className="mt-6 rounded-md shadow-md overflow-hidden">
-                        <div className="px-4 py-5 bg-white border-b border-gray-200 sm:px-6">
+                    <div className="">
+                        <div className="px-2 py-2 bg-white border-b border-gray-200 sm:px-6">
                             <div className="flex justify-between items-center">
                                 <h3 className="text-lg leading-6 font-medium text-gray-900">
                                     <FontAwesomeIcon icon={faFileAlt} className="mr-2" />
@@ -320,22 +464,22 @@ const CompanyDetails = () => {
                             <table className="min-w-full divide-y divide-gray-200">
                                 <thead className="bg-gray-50">
                                     <tr>
-                                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">ID</th>
-                                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Subject</th>
-                                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Message</th>
-                                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Created At</th>
-                                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                                        <th className="px-2 py-1 text-left text-xs font-medium text-gray-500 uppercase">ID</th>
+                                        <th className="px-2 py-1 text-left text-xs font-medium text-gray-500 uppercase">Subject</th>
+                                        <th className="px-2 py-1 text-left text-xs font-medium text-gray-500 uppercase">Message</th>
+                                        <th className="px-2 py-1 text-left text-xs font-medium text-gray-500 uppercase">Created At</th>
+                                        <th className="px-2 py-1 text-left text-xs font-medium text-gray-500 uppercase">Actions</th>
                                     </tr>
                                 </thead>
                                 <tbody className="bg-white divide-y divide-gray-200">
                                     {drafts && drafts.length > 0 ? (
                                         drafts.map((draft) => (
                                             <tr key={draft.id}>
-                                                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{draft.id}</td>
-                                                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{draft.subject}</td>
-                                                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 truncate max-w-xs">{draft.message}</td>
-                                                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{new Date(draft.created_at).toLocaleString()}</td>
-                                                <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                                                <td className="px-2 py-1 whitespace-nowrap text-sm text-gray-900">{draft.id}</td>
+                                                <td className="px-2 py-1 whitespace-nowrap text-sm text-gray-900">{draft.subject}</td>
+                                                <td className="px-2 py-1 whitespace-nowrap text-sm text-gray-900 truncate max-w-xs">{draft.message}</td>
+                                                <td className="px-2 py-1 whitespace-nowrap text-sm text-gray-900">{new Date(draft.created_at).toLocaleString()}</td>
+                                                <td className="px-2 py-1 whitespace-nowrap text-sm font-medium">
                                                     <button
                                                         onClick={() => handleUseDraft(draft)}
                                                         className="text-blue-600 hover:text-blue-900"
@@ -347,7 +491,7 @@ const CompanyDetails = () => {
                                         ))
                                     ) : (
                                         <tr>
-                                            <td colSpan="5" className="px-6 py-4 whitespace-nowrap text-center text-sm text-gray-500">
+                                            <td colSpan="5" className="px-2 py-1 whitespace-nowrap text-center text-sm text-gray-500">
                                                 No drafts available. Create one using the "Create Email Draft" button.
                                             </td>
                                         </tr>
@@ -355,17 +499,40 @@ const CompanyDetails = () => {
                                 </tbody>
                             </table>
                         </div>
+                        <PaginationControls
+                            tab="drafts"
+                            pagination={pagination}
+                            onPageChange={handlePageChange}
+                            onItemsPerPageChange={handleItemsPerPageChange}
+                        />
                     </div>
                 );
             case 'smtp':
+                const filteredSmtpConfigs = selectedHostFilter === 'all'
+                    ? smtpConfigs
+                    : smtpConfigs.filter(smtp => smtp.host === selectedHostFilter);
+
                 return (
-                    <div className="mt-6 rounded-md shadow-md overflow-hidden">
-                        <div className="px-4 py-5 bg-white border-b border-gray-200 sm:px-6">
+                    <div className="">
+                        <div className="px-2 py-2 bg-white border-b border-gray-200 sm:px-6">
                             <div className="flex justify-between items-center">
-                                <h3 className="text-lg leading-6 font-medium text-gray-900">
-                                    <FontAwesomeIcon icon={faCog} className="mr-2" />
-                                    SMTP Configurations ({smtpConfigs.length})
-                                </h3>
+                                <div className="flex items-center space-x-4">
+                                    <h3 className="text-lg leading-6 font-medium text-gray-900">
+                                        <FontAwesomeIcon icon={faCog} className="mr-2" />
+                                        SMTP Configurations ({filteredSmtpConfigs.length})
+                                    </h3>
+                                    <select
+                                        value={selectedHostFilter}
+                                        onChange={(e) => setSelectedHostFilter(e.target.value)}
+                                        className="border border-gray-300 rounded-md text-sm py-1 px-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                                    >
+                                        {getUniqueHosts().map((host) => (
+                                            <option key={host} value={host}>
+                                                {host === 'all' ? 'All Hosts' : host}
+                                            </option>
+                                        ))}
+                                    </select>
+                                </div>
                                 <button
                                     onClick={fetchSmtpConfigs}
                                     className="inline-flex items-center px-3 py-2 border border-transparent text-sm leading-4 font-medium rounded-md text-blue-700 bg-blue-100 hover:bg-blue-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
@@ -379,24 +546,24 @@ const CompanyDetails = () => {
                             <table className="min-w-full divide-y divide-gray-200">
                                 <thead className="bg-gray-50">
                                     <tr>
-                                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Host</th>
-                                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Port</th>
-                                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">From Email</th>
-                                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Username</th>
-                                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Created At</th>
-                                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                                        <th className="px-2 py-1 text-left text-xs font-medium text-gray-500 uppercase">Host</th>
+                                        <th className="px-2 py-1 text-left text-xs font-medium text-gray-500 uppercase">Port</th>
+                                        <th className="px-2 py-1 text-left text-xs font-medium text-gray-500 uppercase">From Email</th>
+                                        <th className="px-2 py-1 text-left text-xs font-medium text-gray-500 uppercase">Username</th>
+                                        <th className="px-2 py-1 text-left text-xs font-medium text-gray-500 uppercase">Created At</th>
+                                        <th className="px-2 py-1 text-left text-xs font-medium text-gray-500 uppercase">Actions</th>
                                     </tr>
                                 </thead>
                                 <tbody className="bg-white divide-y divide-gray-200">
-                                    {smtpConfigs.length > 0 ? (
-                                        smtpConfigs.map((smtp) => (
+                                    {filteredSmtpConfigs.length > 0 ? (
+                                        filteredSmtpConfigs.map((smtp) => (
                                             <tr key={smtp.id}>
-                                                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{smtp.host}</td>
-                                                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{smtp.port}</td>
-                                                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{smtp.from_email}</td>
-                                                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{smtp.username}</td>
-                                                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{new Date(smtp.created_at).toLocaleString()}</td>
-                                                <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                                                <td className="px-2 py-1 whitespace-nowrap text-sm text-gray-900">{smtp.host}</td>
+                                                <td className="px-2 py-1 whitespace-nowrap text-sm text-gray-900">{smtp.port}</td>
+                                                <td className="px-2 py-1 whitespace-nowrap text-sm text-gray-900">{smtp.from_email}</td>
+                                                <td className="px-2 py-1 whitespace-nowrap text-sm text-gray-900">{smtp.username}</td>
+                                                <td className="px-2 py-1 whitespace-nowrap text-sm text-gray-900">{new Date(smtp.created_at).toLocaleString()}</td>
+                                                <td className="px-2 py-1 whitespace-nowrap text-sm font-medium">
                                                     <button
                                                         onClick={() => {
                                                             setSelectedSmtp(smtp);
@@ -411,14 +578,101 @@ const CompanyDetails = () => {
                                         ))
                                     ) : (
                                         <tr>
-                                            <td colSpan="6" className="px-6 py-4 whitespace-nowrap text-center text-sm text-gray-500">
-                                                No SMTP configurations available
+                                            <td colSpan="6" className="px-2 py-1 whitespace-nowrap text-center text-sm text-gray-500">
+                                                {selectedHostFilter === 'all'
+                                                    ? 'No SMTP configurations available'
+                                                    : `No SMTP configurations found for host: ${selectedHostFilter}`}
                                             </td>
                                         </tr>
                                     )}
                                 </tbody>
                             </table>
                         </div>
+                        <PaginationControls
+                            tab="smtp"
+                            pagination={pagination}
+                            onPageChange={handlePageChange}
+                            onItemsPerPageChange={handleItemsPerPageChange}
+                        />
+                    </div>
+                );
+            case 'inbox':
+                return (
+                    <div className="">
+                        <div className="px-2 py-2 bg-white border-b border-gray-200 sm:px-6">
+                            <div className="flex justify-between items-center">
+                                <h3 className="text-lg leading-6 font-medium text-gray-900">
+                                    <FontAwesomeIcon icon={faInbox} className="mr-2" />
+                                    Email Logs ({inboxEmails.length})
+                                </h3>
+                                <button
+                                    onClick={fetchInboxEmails}
+                                    className="inline-flex items-center px-3 py-2 border border-transparent text-sm leading-4 font-medium rounded-md text-blue-700 bg-blue-100 hover:bg-blue-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+                                >
+                                    <FontAwesomeIcon icon={faSyncAlt} className="mr-2" />
+                                    Refresh
+                                </button>
+                            </div>
+                        </div>
+                        <div className="overflow-x-auto">
+                            <table className="min-w-full divide-y divide-gray-200">
+                                <thead className="bg-gray-50">
+                                    <tr>
+                                        <th className="px-2 py-1 text-left text-xs font-medium text-gray-500 uppercase">Subject</th>
+                                        <th className="px-2 py-1 text-left text-xs font-medium text-gray-500 uppercase">From</th>
+                                        <th className="px-2 py-1 text-left text-xs font-medium text-gray-500 uppercase">To</th>
+                                        <th className="px-2 py-1 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
+                                        <th className="px-2 py-1 text-left text-xs font-medium text-gray-500 uppercase">Error</th>
+                                        <th className="px-2 py-1 text-left text-xs font-medium text-gray-500 uppercase">Date</th>
+                                    </tr>
+                                </thead>
+                                <tbody className="bg-white divide-y divide-gray-200">
+                                    {inboxEmails && inboxEmails.length > 0 ? (
+                                        inboxEmails.map((email) => (
+                                            <tr key={email.id}>
+                                                <td className="px-2 py-1 whitespace-nowrap text-sm text-gray-900 max-w-xs truncate">
+                                                    {email.subject}
+                                                </td>
+                                                <td className="px-2 py-1 whitespace-nowrap text-sm text-gray-900">
+                                                    {email.from_email}
+                                                </td>
+                                                <td className="px-2 py-1 whitespace-nowrap text-sm text-gray-900">
+                                                    {email.to_email}
+                                                </td>
+                                                <td className="px-2 py-1 whitespace-nowrap text-sm text-gray-900">
+                                                    <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full 
+                                                        ${email.status === 'failed'
+                                                            ? 'bg-red-100 text-red-800'
+                                                            : 'bg-green-100 text-green-800'
+                                                        }`}
+                                                    >
+                                                        {email.status}
+                                                    </span>
+                                                </td>
+                                                <td className="px-2 py-1 whitespace-nowrap text-sm text-gray-900 max-w-xs truncate">
+                                                    {email.error || '-'}
+                                                </td>
+                                                <td className="px-2 py-1 whitespace-nowrap text-sm text-gray-900">
+                                                    {new Date(email.created_at).toLocaleString()}
+                                                </td>
+                                            </tr>
+                                        ))
+                                    ) : (
+                                        <tr>
+                                            <td colSpan="6" className="px-2 py-1 whitespace-nowrap text-center text-sm text-gray-500">
+                                                No email logs found
+                                            </td>
+                                        </tr>
+                                    )}
+                                </tbody>
+                            </table>
+                        </div>
+                        <PaginationControls
+                            tab="inbox"
+                            pagination={pagination}
+                            onPageChange={handlePageChange}
+                            onItemsPerPageChange={handleItemsPerPageChange}
+                        />
                     </div>
                 );
             default:
@@ -463,144 +717,165 @@ const CompanyDetails = () => {
     }
 
     return (
-        <div className="min-h-screen bg-gray-50 py-6 sm:py-12">
-            <div className="relative py-3 sm:max-w-5xl sm:mx-auto">
-                <div className="absolute inset-0 bg-gradient-to-r from-blue-300 to-blue-600 shadow-lg transform -skew-y-6 sm:skew-y-0 sm:-rotate-6 sm:rounded-3xl"></div>
-                <div className="relative px-4 py-10 bg-white shadow-lg sm:rounded-3xl sm:p-20">
-                    <div className="max-w-3xl mx-auto">
-                        <div className="flex justify-between items-center mb-8">
-                            <h1 className="text-3xl font-semibold text-gray-900">Company Details</h1>
-                            <button
-                                onClick={() => navigate('/dashboard/company')}
-                                className="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded focus:outline-none focus:shadow-outline flex items-center"
-                            >
-                                <FontAwesomeIcon icon={faArrowLeft} className="mr-2" />
-                                Back to Companies
-                            </button>
-                        </div>
-                        <div className="bg-blue-50 rounded-lg p-6 mb-8">
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                <div>
-                                    <h3 className="text-gray-600 text-sm uppercase tracking-wider">Company Name</h3>
-                                    <p className="font-semibold text-xl text-gray-900">{company.name}</p>
-                                </div>
-                                <div>
-                                    <h3 className="text-gray-600 text-sm uppercase tracking-wider">Email</h3>
-                                    <p className="font-semibold text-xl text-gray-900">{company.email}</p>
-                                </div>
-                                <div>
-                                    <h3 className="text-gray-600 text-sm uppercase tracking-wider">Created At</h3>
-                                    <p className="font-semibold text-xl text-gray-900">{new Date(company.created_at).toLocaleString()}</p>
-                                </div>
-                            </div>
-                        </div>
+        <div className="min-h-screen">
+            <div className="flex justify-between items-center mb-2">
+                <div className="flex items-center space-x-2">
+                    {/* <button
+                        onClick={() => navigate('/dashboard/company')}
+                        className="text-gray-600 hover:text-gray-900"
+                    >
+                        <FontAwesomeIcon icon={faArrowLeft} />
+                    </button> */}
+                    {/* <h1 className="text-xl font-semibold text-gray-900">
+                        {company?.name || 'Company Details'}
+                    </h1> */}
+                </div>
+            </div>
 
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                            {/* Left Side - Log Buttons */}
-                            <div className="space-y-4">
-                                <div>
-                                    <h3 className="text-lg font-medium text-gray-700 mb-3">Email Logs</h3>
-                                    <div className="flex space-x-3">
-                                        <button
-                                            onClick={() => setActiveTab('sent')}
-                                            className={`flex-1 px-5 py-3 rounded-md font-medium ${activeTab === 'sent' ? 'bg-blue-600 text-white shadow-md' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}
-                                        >
-                                            <FontAwesomeIcon icon={faEnvelope} className="mr-2" />
-                                            Sent
-                                        </button>
-                                    </div>
-                                </div>
-
-                                <button
-                                    onClick={() => setActiveTab('drafts')}
-                                    className={`w-full px-5 py-3 rounded-md font-medium ${activeTab === 'drafts' ? 'bg-blue-600 text-white shadow-md' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}
-                                >
-                                    <FontAwesomeIcon icon={faFileAlt} className="mr-2" />
-                                    Email Draft Logs
-                                </button>
-                                <button
-                                    onClick={() => setActiveTab('smtp')}
-                                    className={`w-full px-5 py-3 rounded-md font-medium ${activeTab === 'smtp' ? 'bg-blue-600 text-white shadow-md' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}
-                                >
-                                    <FontAwesomeIcon icon={faCog} className="mr-2" />
-                                    SMTP Logs
-                                </button>
-                            </div>
-
-                            {/* Right Side - Action Buttons */}
-                            <div className="space-y-4 mt-10">
-                                <button
-                                    onClick={() => setShowSendEmailModal(true)}
-                                    className="w-full px-5 py-3 bg-blue-600 text-white rounded-md font-medium hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-1 shadow-md"
-                                >
-                                    <FontAwesomeIcon icon={faPaperPlane} className="mr-2" />
-                                    Send Email
-                                </button>
-                                <button
-                                    onClick={() => setShowDraftModal(true)}
-                                    className="w-full px-5 py-3 bg-green-500 text-white rounded-md font-medium hover:bg-green-600 focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-1 shadow-md"
-                                >
-                                    <FontAwesomeIcon icon={faPlusCircle} className="mr-2" />
-                                    Create Email Draft
-                                </button>
-                                <button
-                                    onClick={() => setShowSmtpModal(true)}
-                                    className="w-full px-5 py-3 bg-purple-500 text-white rounded-md font-medium hover:bg-purple-600 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:ring-offset-1 shadow-md"
-                                >
-                                    <FontAwesomeIcon icon={faCog} className="mr-2" />
-                                    Create SMTP Configuration
-                                </button>
-                            </div>
-                        </div>
-
-                        {/* Logs Display Area */}
-                        <div className="mt-8">
-                            {renderLogTable()}
-                        </div>
-
-                        {/* Modals */}
-                        {showSendEmailModal && (
-                            <SendEmailModal
-                                isOpen={showSendEmailModal}
-                                onClose={() => setShowSendEmailModal(false)}
-                                companyId={id}
-                                draft={selectedDraft}
-                                onEmailSent={async () => {
-                                    // Add a small delay to allow the email to be processed
-                                    await new Promise(resolve => setTimeout(resolve, 1000));
-                                    if (activeTab === 'sent') {
-                                        await fetchSentEmails();
-                                    }
-                                    setSelectedDraft(null); // Reset selected draft
-                                }}
-                            />
-                        )}
-                        {showDraftModal && (
-                            <CreateDraftModal
-                                isOpen={showDraftModal}
-                                onClose={() => {
-                                    setShowDraftModal(false);
-                                }}
-                                companyId={id}
-                                onDraftCreated={() => {
-                                    console.log('Refreshing drafts after creation');
-                                    fetchDrafts();
-                                }}
-                            />
-                        )}
-                        {showSmtpModal && (
-                            <CreateSmtpModal
-                                isOpen={showSmtpModal}
-                                onClose={() => setShowSmtpModal(false)}
-                                companyId={id}
-                                onSmtpCreated={() => {
-                                    fetchSmtpConfigs();
-                                }}
-                            />
-                        )}
+            {/* Company Info Card */}
+            <div className="bg-white shadow-sm rounded-lg p-2 mb-2">
+                <div className="grid grid-cols-4 gap-4 items-center">
+                    <div className="flex items-center">
+                        <button
+                            onClick={() => navigate('/dashboard/company')}
+                            className="text-gray-600 hover:text-gray-900 flex items-center space-x-1"
+                        >
+                            <FontAwesomeIcon icon={faArrowLeft} />
+                            <span className="ml-1">Back</span>
+                        </button>
+                    </div>
+                    <div className="flex flex-col">
+                        <p className="text-xs text-gray-500 uppercase">Company Name</p>
+                        <p className="text-sm font-medium text-gray-900">{company?.name}</p>
+                    </div>
+                    <div className="flex flex-col">
+                        <p className="text-xs text-gray-500 uppercase">Email Address</p>
+                        <p className="text-sm font-medium text-gray-900">{company?.email}</p>
+                    </div>
+                    <div className="flex flex-col">
+                        <p className="text-xs text-gray-500 uppercase">Created Date</p>
+                        <p className="text-sm font-medium text-gray-900">
+                            {company?.created_at && new Date(company.created_at).toLocaleDateString()}
+                        </p>
                     </div>
                 </div>
             </div>
+
+            {/* Tabs - reduced padding */}
+            <div className="bg-white shadow-sm rounded-lg">
+                <div className="border-b border-gray-200">
+                    <nav className="flex justify-between items-center">
+                        <div className="flex">
+                            <button
+                                onClick={() => setActiveTab('sent')}
+                                className={`py-2 px-4 text-sm font-medium border-b-2 ${activeTab === 'sent'
+                                    ? 'border-blue-500 text-blue-600'
+                                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                                    }`}
+                            >
+                                <FontAwesomeIcon icon={faPaperPlane} className="mr-1" />
+                                Sent
+                            </button>
+                            <button
+                                onClick={() => setActiveTab('inbox')}
+                                className={`py-2 px-4 text-sm font-medium border-b-2 ${activeTab === 'inbox'
+                                    ? 'border-blue-500 text-blue-600'
+                                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                                    }`}
+                            >
+                                <FontAwesomeIcon icon={faInbox} className="mr-1" />
+                                Inbox
+                            </button>
+                            <button
+                                onClick={() => setActiveTab('drafts')}
+                                className={`py-2 px-4 text-sm font-medium border-b-2 ${activeTab === 'drafts'
+                                    ? 'border-blue-500 text-blue-600'
+                                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                                    }`}
+                            >
+                                <FontAwesomeIcon icon={faFileAlt} className="mr-1" />
+                                Drafts
+                            </button>
+                            <button
+                                onClick={() => setActiveTab('smtp')}
+                                className={`py-2 px-4 text-sm font-medium border-b-2 ${activeTab === 'smtp'
+                                    ? 'border-blue-500 text-blue-600'
+                                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                                    }`}
+                            >
+                                <FontAwesomeIcon icon={faCog} className="mr-1" />
+                                SMTP
+                            </button>
+                        </div>
+                        <div className="flex items-center space-x-2 pr-2">
+                            <button
+                                onClick={() => setShowSendEmailModal(true)}
+                                className="bg-blue-500 hover:bg-blue-700 text-white px-2 py-1 rounded-md text-sm flex items-center"
+                            >
+                                <FontAwesomeIcon icon={faPaperPlane} className="mr-1" />
+                                Send Email
+                            </button>
+                            <button
+                                onClick={() => setShowDraftModal(true)}
+                                className="bg-green-500 hover:bg-green-700 text-white px-2 py-1 rounded-md text-sm flex items-center"
+                            >
+                                <FontAwesomeIcon icon={faPlusCircle} className="mr-1" />
+                                Create Draft
+                            </button>
+                            <button
+                                onClick={() => setShowSmtpModal(true)}
+                                className="bg-purple-500 hover:bg-purple-700 text-white px-2 py-1 rounded-md text-sm flex items-center"
+                            >
+                                <FontAwesomeIcon icon={faCog} className="mr-1" />
+                                Add SMTP
+                            </button>
+                        </div>
+                    </nav>
+                </div>
+
+                {/* Content Area - reduced padding */}
+                <div className="p-2"> {/* reduced p-4 to p-2 */}
+                    {renderLogTable()}
+                </div>
+            </div>
+
+            {/* Modals */}
+            {showSendEmailModal && (
+                <SendEmailModal
+                    isOpen={showSendEmailModal}
+                    onClose={() => setShowSendEmailModal(false)}
+                    companyId={id}
+                    draft={selectedDraft}
+                    onEmailSent={async () => {
+                        setShowSendEmailModal(false);
+                        await new Promise(resolve => setTimeout(resolve, 1000)); // Wait for email log to be created
+                        await fetchSentEmails(); // Refresh sent emails list
+                        setSelectedDraft(null);
+                        toast.success('Email sent successfully');
+                    }}
+                />
+            )}
+            {showDraftModal && (
+                <CreateDraftModal
+                    isOpen={showDraftModal}
+                    onClose={() => setShowDraftModal(false)}
+                    companyId={id}
+                    onDraftCreated={() => fetchDrafts()}
+                />
+            )}
+            {showSmtpModal && (
+                <CreateSmtpModal
+                    isOpen={showSmtpModal}
+                    onClose={() => setShowSmtpModal(false)}
+                    companyId={id}
+                    onSmtpCreated={async () => {
+                        await fetchSmtpConfigs(); // Ensure we wait for the configs to be fetched
+                        setShowSmtpModal(false); // Close the modal after successful creation
+                        setActiveTab('smtp'); // Switch to SMTP tab
+                        toast.success('SMTP configuration created successfully');
+                    }}
+                />
+            )}
         </div>
     );
 };
