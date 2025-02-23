@@ -8,13 +8,13 @@ const CreateSmtpModal = ({ isOpen, onClose, companyId, onSmtpCreated }) => {
   const navigate = useNavigate();
   const [formData, setFormData] = useState({
     company_id: parseInt(companyId),
-    host: 'mail.jumpintojob.com',
-    port: '465',
+    host: '',
+    port: '',
     from_email: '',
     from_name: '',
     username: '',
-    password: '', // Add password field
-    encryption: 'ssl'
+    password: '',
+    encryption: ''
   });
   const [isLoading, setIsLoading] = useState(false);
 
@@ -94,21 +94,29 @@ const CreateSmtpModal = ({ isOpen, onClose, companyId, onSmtpCreated }) => {
         </div>
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
-            <label className="block text-sm font-medium mb-1">Host</label>
+            <label className="block text-sm font-medium mb-1">
+              Host <span className="text-red-500">*</span>
+            </label>
             <input
               type="text"
+              required
               value={formData.host}
-              className="w-full p-2 border rounded bg-gray-50"
-              disabled
+              onChange={(e) => setFormData({ ...formData, host: e.target.value })}
+              className="w-full p-2 border rounded"
+              placeholder="mail.example.com"
             />
           </div>
           <div>
-            <label className="block text-sm font-medium mb-1">Port</label>
+            <label className="block text-sm font-medium mb-1">
+              Port <span className="text-red-500">*</span>
+            </label>
             <input
               type="text"
+              required
               value={formData.port}
-              className="w-full p-2 border rounded bg-gray-50"
-              disabled
+              onChange={(e) => setFormData({ ...formData, port: e.target.value })}
+              className="w-full p-2 border rounded"
+              placeholder="465, 587, etc."
             />
           </div>
           <div>
@@ -157,13 +165,20 @@ const CreateSmtpModal = ({ isOpen, onClose, companyId, onSmtpCreated }) => {
             />
           </div>
           <div>
-            <label className="block text-sm font-medium mb-1">Encryption</label>
-            <input
-              type="text"
+            <label className="block text-sm font-medium mb-1">
+              Encryption <span className="text-red-500">*</span>
+            </label>
+            <select
+              required
               value={formData.encryption}
-              className="w-full p-2 border rounded bg-gray-50"
-              disabled
-            />
+              onChange={(e) => setFormData({ ...formData, encryption: e.target.value })}
+              className="w-full p-2 border rounded"
+            >
+              <option value="">Select Encryption</option>
+              <option value="ssl">SSL</option>
+              <option value="tls">TLS</option>
+              <option value="none">None</option>
+            </select>
           </div>
           <div className="flex justify-end gap-2 pt-4">
             <button
