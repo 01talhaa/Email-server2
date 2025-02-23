@@ -3,12 +3,6 @@ import { BrowserRouter as Router, Route, Routes, Navigate } from 'react-router-d
 import { AuthProvider, useAuth } from './context/AuthContext';
 import Login from './components/Login';
 import Dashboard from './components/Dashboard';
-// import Company from './components/Company';
-import Company from './components/companyPage/Company';
-// import CompanyDetails from './components/CompanyDetails';
-import CompanyDetails from './components/companyPage/CompanyDetails';
-// import CompanyEdit from './components/CompanyEdit';
-// import CompanyEdit from './components/companyPage/CompanyEdit';
 import { Toaster } from 'react-hot-toast';
 
 const ProtectedRoute = ({ children }) => {
