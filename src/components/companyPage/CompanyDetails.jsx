@@ -381,7 +381,7 @@ const CompanyDetails = () => {
                             <div className="flex justify-between ">
                                 <h3 className="text-lg leading-6 font-medium text-gray-900">
                                     <FontAwesomeIcon icon={faEnvelope} className="mr-2" />
-                                    Sent Emails ({emailLogs.sent ? emailLogs.sent.length : 0})
+                                    Inbox Emails ({emailLogs.sent ? emailLogs.sent.length : 0})
                                 </h3>
                                 <button
                                     onClick={fetchSentEmails}
@@ -603,7 +603,7 @@ const CompanyDetails = () => {
                             <div className="flex justify-between items-center">
                                 <h3 className="text-lg leading-6 font-medium text-gray-900">
                                     <FontAwesomeIcon icon={faInbox} className="mr-2" />
-                                    Email Logs ({inboxEmails.length})
+                                    Sent Emails ({inboxEmails.length})
                                 </h3>
                                 <button
                                     onClick={fetchInboxEmails}
@@ -773,8 +773,10 @@ const CompanyDetails = () => {
                                     : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
                                     }`}
                             >
-                                <FontAwesomeIcon icon={faPaperPlane} className="mr-1" />
-                                Sent
+                                {/* <FontAwesomeIcon icon={faPaperPlane} className="mr-1" />
+                                Sent */}
+                                <FontAwesomeIcon icon={faInbox} className="mr-1" />
+                                Inbox
                             </button>
                             <button
                                 onClick={() => setActiveTab('inbox')}
@@ -783,8 +785,10 @@ const CompanyDetails = () => {
                                     : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
                                     }`}
                             >
-                                <FontAwesomeIcon icon={faInbox} className="mr-1" />
-                                Inbox
+                                {/* <FontAwesomeIcon icon={faInbox} className="mr-1" />
+                                Inbox */}
+                                <FontAwesomeIcon icon={faPaperPlane} className="mr-1" />
+                                Sent
                             </button>
                             <button
                                 onClick={() => setActiveTab('drafts')}
