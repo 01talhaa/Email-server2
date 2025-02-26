@@ -1,16 +1,26 @@
 import React from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { HomeIcon, InboxIcon, BuildingOffice2Icon, ArrowRightOnRectangleIcon } from '@heroicons/react/24/outline';
+import {
+  HomeIcon,
+  InboxIcon,
+  BuildingOffice2Icon,
+  ArrowRightOnRectangleIcon,
+  DocumentTextIcon // Add this import
+} from '@heroicons/react/24/outline';
 import { useAuth } from '../context/AuthContext';
 
 const Navigation = () => {
   const location = useLocation();
   const { logout } = useAuth();
 
+
   const menuItems = [
-    { path: '/dashboard', icon: InboxIcon, label: 'Dashboard' },
-    { path: '/dashboard/company', icon: BuildingOffice2Icon, label: 'Company' }
+    { path: '/dashboard', icon: InboxIcon, label: 'Email Url and Payload' },
+    { path: '/dashboard/company', icon: BuildingOffice2Icon, label: 'Email Companies' },
+    { path: '/dashboard/docs/url', icon: DocumentTextIcon, label: 'Document Url and Payload' },
+    { path: '/dashboard/docs/company', icon: DocumentTextIcon, label: 'Document Companies' }
   ];
+
 
   const isActive = (path) => {
     if (path === '/dashboard') {
@@ -24,7 +34,7 @@ const Navigation = () => {
       {/* Header */}
       <div className="flex items-center justify-center h-16 bg-gray-900/50 border-b border-gray-700">
         <span className="text-white font-bold text-xl tracking-wider">
-          Email Server
+        Microservices
         </span>
       </div>
 
