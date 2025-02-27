@@ -1,18 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useAuth } from '../../context/AuthContext';
 import { toast } from 'react-hot-toast';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import {
   faPlus,
-  faEdit,
-  faEye,
   faSpinner,
-  faFile,
-  faTrash
 } from '@fortawesome/free-solid-svg-icons';
 import CreateCompanyModal from './CreateCompanyModal';
-import AddDocumentModal from './AddDocumentModal';
 
 const DocumentCompany = () => {
   const [companies, setCompanies] = useState([]);

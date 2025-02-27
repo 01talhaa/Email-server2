@@ -7,7 +7,7 @@ import AddDocumentModal from './AddDocumentModal';
 
 const API_BASE_URL = 'https://core.qualitees.co.uk/api';
 const TOKEN = 'test-aserg5a4frg6534ae4r4qerJLKAQBE*&^&';
-const FILE_TYPES = ['profile', 'logo', 'document', 'other'];
+// const FILE_TYPES = ['profile', 'logo', 'document', 'other'];
 
 const DocumentCompanyDetails = () => {
   const { id } = useParams();
@@ -70,14 +70,22 @@ const DocumentCompanyDetails = () => {
       const data = await response.json();
 
       if (data.success) {
+        // Optimistically update the UI
+        setDocuments(prevDocuments =>
+          prevDocuments.filter(doc => doc.id !== documentId)
+        );
         toast.success('Document deleted successfully');
-        fetchDocuments();
+
+        // Then refresh the data to ensure sync with server
+        await fetchDocuments();
       } else {
         throw new Error(data.message || 'Failed to delete document');
       }
     } catch (error) {
       console.error('Delete document error:', error);
       toast.error(error.message);
+      // Refresh documents in case of error to ensure UI is in sync
+      await fetchDocuments();
     }
   };
 
@@ -114,7 +122,7 @@ const DocumentCompanyDetails = () => {
             Documents Management
           </h1>
           <div className="flex items-center space-x-4">
-            <div className="flex items-center space-x-2">
+            {/* <div className="flex items-center space-x-2">
               <label htmlFor="fileType" className="text-sm text-gray-600">
                 Filter by type:
               </label>
@@ -131,7 +139,7 @@ const DocumentCompanyDetails = () => {
                   </option>
                 ))}
               </select>
-            </div>
+            </div> */}
             <button
               onClick={() => setIsUploadModalOpen(true)}
               className="inline-flex items-center px-3 py-1.5 border border-transparent text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700"

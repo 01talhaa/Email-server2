@@ -99,20 +99,6 @@ const CreateCompanyModal = ({ isOpen, onClose, onCompanyCreated }) => {
               />
             </div>
 
-            <div className="mb-4">
-              <label htmlFor="description" className="block text-sm font-medium text-gray-700">
-                Description
-              </label>
-              <textarea
-                id="description"
-                name="description"
-                value={formData.description}
-                onChange={handleChange}
-                rows="3"
-                className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm"
-              />
-            </div>
-
             <div className="mt-5 flex justify-end space-x-2">
               <button
                 type="button"

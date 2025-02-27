@@ -1,15 +1,16 @@
 import React from 'react';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import { faLink, faCode, faCopy } from '@fortawesome/free-solid-svg-icons';
+import { faLink, faCode, faCopy, faSearch } from '@fortawesome/free-solid-svg-icons';
 import { toast } from 'react-toastify';
 
 const DocumentUrl = () => {
   const baseApiEndpoint = 'https://core.qualitees.co.uk/api';
   const companyToken = 'test-aserg5a4frg6534ae4r4qerJLKAQBE*&^&';
-  
+
   const endpoints = {
     upload: `${baseApiEndpoint}/documents`,
-    get: `${baseApiEndpoint}/documents`
+    get: `${baseApiEndpoint}/documents`,
+    search: `${baseApiEndpoint}/documents?id=128` // Add this line
   };
 
   const sampleUploadPayload = {
@@ -31,7 +32,7 @@ const DocumentUrl = () => {
     <div className="min-h-screen bg-gray-50 py-8 px-4 sm:px-6 lg:px-8">
       <div className="max-w-4xl mx-auto">
         <h1 className="text-3xl font-bold text-gray-900 mb-8">Document API Documentation</h1>
-        
+
         {/* Headers Section */}
         <div className="bg-white rounded-lg shadow-sm p-6 mb-6">
           <div className="flex items-center justify-between mb-4">
@@ -98,11 +99,51 @@ const DocumentUrl = () => {
           <div className="mt-4">
             <h3 className="text-lg font-medium text-gray-900 mb-2">Query Parameters</h3>
             <ul className="list-disc pl-5 text-sm text-gray-600">
-              <li>file_type (optional) - Filter by document type</li>
-              <li>entity_id (required) - ID of the entity</li>
-              <li>page (optional) - Page number for pagination</li>
-              <li>limit (optional) - Items per page</li>
+              <li>file_type - Filter by document type</li>
+              <li>entity_id - ID of the entity</li>
+              <li>page - Page number for pagination</li>
+              <li>limit - Items per page</li>
             </ul>
+          </div>
+        </div>
+
+        {/* Search Document Endpoint Section */}
+        <div className="bg-white rounded-lg shadow-sm p-6 mb-6">
+          <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center">
+              <FontAwesomeIcon icon={faSearch} className="text-yellow-500 mr-2" />
+              <h2 className="text-xl font-semibold text-gray-900">Search Individual Document (GET)</h2>
+            </div>
+            <button
+              onClick={() => handleCopy(endpoints.search)}
+              className="text-gray-400 hover:text-gray-600 transition-colors"
+            >
+              <FontAwesomeIcon icon={faCopy} />
+            </button>
+          </div>
+          <div className="bg-gray-50 rounded-md p-4 mb-4">
+            <code className="text-sm text-blue-600">{endpoints.search}</code>
+          </div>
+          <div className="mt-4">
+            <h3 className="text-lg font-medium text-gray-900 mb-2">Query Parameters</h3>
+            <ul className="list-disc pl-5 text-sm text-gray-600">
+              <li>id (required) - The unique identifier of the document</li>
+            </ul>
+          </div>
+          <div className="mt-4">
+            <h3 className="text-lg font-medium text-gray-900 mb-2">Response Example</h3>
+            <div className="bg-gray-50 rounded-md p-4">
+              <pre className="text-sm text-gray-800 overflow-x-auto">
+                {JSON.stringify({
+                  success: true,
+                  data: {
+                    id: 128,
+                    file_url: "https://core.qualitees.co.uk/api/documents/download/128",
+                    file_type: "profile"
+                  }
+                }, null, 2)}
+              </pre>
+            </div>
           </div>
         </div>
       </div>
