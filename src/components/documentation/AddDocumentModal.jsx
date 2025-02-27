@@ -1,18 +1,24 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faSpinner } from '@fortawesome/free-solid-svg-icons';
 import { toast } from 'react-hot-toast';
 
 const API_BASE_URL = 'https://core.qualitees.co.uk/api';
-const TOKEN = 'test-aserg5a4frg6534ae4r4qerJLKAQBE*&^&';
 
-const AddDocumentModal = ({ isOpen, onClose, companyId, onDocumentAdded }) => {
+const AddDocumentModal = ({ isOpen, onClose, companyId, token, onDocumentAdded }) => {
     const [file, setFile] = useState(null);
     const [isUploading, setIsUploading] = useState(false);
     const [formData, setFormData] = useState({
         fileName: '',
-        fileType: 'profile' // default value
+        fileType: '' // Changed from default value to empty string
     });
+
+    useEffect(() => {
+        if (!token) {
+            toast.error('Company token not available');
+            onClose();
+        }
+    }, [token]);
 
     const handleInputChange = (e) => {
         const { name, value } = e.target;
@@ -24,30 +30,35 @@ const AddDocumentModal = ({ isOpen, onClose, companyId, onDocumentAdded }) => {
 
     const handleSubmit = async (e) => {
         e.preventDefault();
-        if (!file || !formData.fileName) {
+        if (!file || !formData.fileName || !formData.fileType) {
             toast.error('Please fill all required fields');
             return;
         }
 
-        setIsUploading(true);
-        const formPayload = new FormData();
-        formPayload.append('files[]', file);
-        formPayload.append('file_type', formData.fileType);
-        formPayload.append('entity_id', companyId);
-        formPayload.append('file_name', formData.fileName);
+        if (!token) {
+            toast.error('Company token not available');
+            return;
+        }
 
         try {
+            setIsUploading(true);
+            const formPayload = new FormData();
+            formPayload.append('files[]', file);
+            formPayload.append('file_type', formData.fileType.toLowerCase()); // Convert to lowercase
+            formPayload.append('entity_id', companyId);
+            formPayload.append('file_name', formData.fileName);
+
             const response = await fetch(`${API_BASE_URL}/documents`, {
                 method: 'POST',
                 headers: {
-                    'x-company-token': TOKEN
+                    'x-company-token': token
                 },
                 body: formPayload
             });
 
             const data = await response.json();
 
-            if (data.success) {
+            if (response.ok && data.success) {
                 toast.success('Document uploaded successfully');
                 onDocumentAdded();
                 onClose();
@@ -91,17 +102,15 @@ const AddDocumentModal = ({ isOpen, onClose, companyId, onDocumentAdded }) => {
                                 <label className="block text-sm font-medium text-gray-700">
                                     File Type
                                 </label>
-                                <select
+                                <input
+                                    type="text"
                                     name="fileType"
                                     value={formData.fileType}
                                     onChange={handleInputChange}
+                                    placeholder="Enter file type (e.g., profile, logo, document)"
                                     className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm"
-                                >
-                                    <option value="profile">Profile</option>
-                                    <option value="logo">Logo</option>
-                                    <option value="document">Document</option>
-                                    <option value="other">Other</option>
-                                </select>
+                                    required
+                                />
                             </div>
 
                             <div>
