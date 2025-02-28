@@ -21,6 +21,7 @@ const DocumentCompanyDetails = () => {
     return savedItemsPerPage ? parseInt(savedItemsPerPage) : 10;
   });
   const [selectedFileType, setSelectedFileType] = useState('all');
+  const [totalItems, setTotalItems] = useState(0);
   const navigate = useNavigate();
 
   const fetchCompanyDetails = async () => {
@@ -52,7 +53,7 @@ const DocumentCompanyDetails = () => {
       setIsLoading(true);
       const fileTypeQuery = selectedFileType !== 'all' ? `&file_type=${selectedFileType}` : '';
       const response = await fetch(
-        `${API_BASE_URL}/documents?entity_id=${id}&page=${currentPage}&limit=${itemsPerPage}${fileTypeQuery}`,
+        `${API_BASE_URL}/documents?page=${currentPage}&limit=${itemsPerPage}${fileTypeQuery}`,
         {
           headers: {
             'Content-Type': 'application/json',
@@ -62,9 +63,16 @@ const DocumentCompanyDetails = () => {
       );
 
       const data = await response.json();
+
       if (data.meta && data.result) {
         setDocuments(data.result);
+        setTotalItems(data.meta.total);
         setTotalPages(data.meta.totalPage);
+
+        // If current page is greater than total pages, reset to page 1
+        if (currentPage > data.meta.totalPage) {
+          setCurrentPage(1);
+        }
       }
     } catch (error) {
       console.error('Fetch documents error:', error);
@@ -165,6 +173,14 @@ const DocumentCompanyDetails = () => {
     toast.success('Copied to clipboard!');
   };
 
+  const getEntriesText = () => {
+    if (documents.length === 0) return 'No documents found';
+
+    const start = ((currentPage - 1) * itemsPerPage) + 1;
+    const end = Math.min(currentPage * itemsPerPage, ((currentPage - 1) * itemsPerPage) + documents.length);
+    return `Showing ${start} to ${end} of ${totalItems} documents`;
+  };
+
   return (
     <div className="">
       <div className="">
@@ -222,6 +238,11 @@ const DocumentCompanyDetails = () => {
         </div>
 
         <div className="bg-white shadow-sm rounded-lg overflow-hidden border border-gray-200">
+          <div className="px-4 py-2 border-b border-gray-200">
+            <div className="text-xs text-gray-500">
+              {getEntriesText()}
+            </div>
+          </div>
           <table className="min-w-full divide-y divide-gray-200">
             <thead className="bg-gray-50">
               <tr>
@@ -283,7 +304,7 @@ const DocumentCompanyDetails = () => {
             <div className="flex items-center justify-between">
               <div className="flex items-center space-x-3">
                 <span className="text-xs text-gray-600">
-                  Page {currentPage} of {totalPages}
+                  {getEntriesText()}
                 </span>
                 <div className="flex items-center space-x-2">
                   <label htmlFor="itemsPerPage" className="text-xs text-gray-500">
