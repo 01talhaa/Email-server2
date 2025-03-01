@@ -247,6 +247,7 @@ const DocumentCompanyDetails = () => {
             <thead className="bg-gray-50">
               <tr>
                 <th className="px-3 py-1.5 text-left text-[11px] font-medium text-gray-500 uppercase tracking-wider">ID</th>
+                <th className="px-3 py-1.5 text-left text-[11px] font-medium text-gray-500 uppercase tracking-wider">Entity ID</th>
                 <th className="px-3 py-1.5 text-left text-[11px] font-medium text-gray-500 uppercase tracking-wider">File Type</th>
                 <th className="px-3 py-1.5 text-left text-[11px] font-medium text-gray-500 uppercase tracking-wider">File URL</th>
                 <th className="px-3 py-1.5 text-left text-[11px] font-medium text-gray-500 uppercase tracking-wider">Actions</th>
@@ -255,7 +256,7 @@ const DocumentCompanyDetails = () => {
             <tbody className="bg-white divide-y divide-gray-200">
               {isLoading ? (
                 <tr>
-                  <td colSpan="4" className="px-4 py-2 text-center">
+                  <td colSpan="5" className="px-4 py-2 text-center">
                     <FontAwesomeIcon icon={faSpinner} spin className="mr-1.5" />
                     Loading...
                   </td>
@@ -263,8 +264,9 @@ const DocumentCompanyDetails = () => {
               ) : documents.length > 0 ? (
                 documents.map((doc) => (
                   <tr key={doc.id} className="hover:bg-gray-50">
-                    <td className="px-4 py-2 whitespace-nowrap text-sm text-gray-900">{doc.id}</td>
-                    <td className="px-4 py-2 whitespace-nowrap text-sm text-gray-900">
+                    <td className="px-4 py-2 whitespace-nowrap text-xs text-gray-900">{doc.id}</td>
+                    <td className="px-4 py-2 whitespace-nowrap text-xs text-gray-900">{doc.entity_id}</td>
+                    <td className="px-4 py-2 whitespace-nowrap text-xs text-gray-900">
                       <span className={`px-2 py-0.5 inline-flex text-xs leading-5 font-semibold rounded-full ${getFileTypeBadgeColor(doc.file_type)}`}>
                         {doc.file_type}
                       </span>
@@ -293,7 +295,7 @@ const DocumentCompanyDetails = () => {
                 ))
               ) : (
                 <tr>
-                  <td colSpan="4" className="px-4 py-2 text-center text-sm text-gray-500">
+                  <td colSpan="5" className="px-4 py-2 text-center text-xs text-gray-500">
                     No documents found
                   </td>
                 </tr>

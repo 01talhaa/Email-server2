@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'react-hot-toast';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import { faPlus, faSpinner, faEdit } from '@fortawesome/free-solid-svg-icons';
+import { faPlus, faSpinner, faEdit, faTrash } from '@fortawesome/free-solid-svg-icons';
 import CreateCompanyModal from './CreateCompanyModal';
 import EditCompanyModal from './EditCompanyModal';
 
@@ -71,6 +71,37 @@ const DocumentCompany = () => {
     setEditingCompany(company);
   };
 
+  const handleDeleteCompany = async (companyId, e) => {
+    e.stopPropagation();
+
+    if (!window.confirm('Are you sure you want to delete this company?')) {
+      return;
+    }
+
+    try {
+      setIsLoading(true);
+      const response = await fetch(`${API_BASE_URL}/companies/${companyId}`, {
+        method: 'DELETE',
+        headers: {
+          'Content-Type': 'application/json'
+        }
+      });
+
+      if (!response.ok) {
+        const data = await response.json();
+        throw new Error(data.message || 'Failed to delete company');
+      }
+
+      toast.success('Company deleted successfully');
+      fetchCompanies();
+    } catch (error) {
+      console.error('Delete company error:', error);
+      toast.error(error.message || 'Failed to delete company');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   const getEntriesText = () => {
     if (companies.length === 0) return 'No companies found';
 
@@ -135,16 +166,25 @@ const DocumentCompany = () => {
                       {new Date(company.created_at).toLocaleDateString()}
                     </td>
                     <td className="px-4 py-2 whitespace-nowrap text-xs">
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleEditClick(company);
-                        }}
-                        className="text-green-600 hover:text-green-900 flex items-center"
-                      >
-                        <FontAwesomeIcon icon={faEdit} className="h-3.5 w-3.5 mr-1" />
-                        Edit
-                      </button>
+                      <div className="flex items-center space-x-3">
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleEditClick(company);
+                          }}
+                          className="text-green-600 hover:text-green-900 flex items-center"
+                        >
+                          <FontAwesomeIcon icon={faEdit} className="h-3.5 w-3.5 mr-1" />
+                          Edit
+                        </button>
+                        <button
+                          onClick={(e) => handleDeleteCompany(company.id, e)}
+                          className="text-red-600 hover:text-red-900 flex items-center"
+                        >
+                          <FontAwesomeIcon icon={faTrash} className="h-3.5 w-3.5 mr-1" />
+                          Delete
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 ))
