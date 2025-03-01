@@ -17,16 +17,72 @@ const Login = () => {
 
     const handleLogin = async (data) => {
         try {
+            // Store both access and refresh tokens
             localStorage.setItem('user', JSON.stringify({
                 token: data.token || data.access_token,
+                refresh_token: data.refresh_token,
                 ...data
             }));
+
+            // Set up refresh token interval
+            setupTokenRefresh(data.refresh_token);
+
             login(data);
             navigate('/dashboard');
         } catch (error) {
             console.error('Login error:', error);
             toast.error('Login failed');
         }
+    };
+
+    const refreshAccessToken = async (refresh_token) => {
+        try {
+            const response = await fetch(`${API_BASE_URL}/auth/refresh`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ refresh_token }),
+            });
+
+            const data = await response.json();
+
+            if (!response.ok) {
+                throw new Error(data.message || 'Token refresh failed');
+            }
+
+            // Update stored tokens
+            const userData = JSON.parse(localStorage.getItem('user'));
+            localStorage.setItem('user', JSON.stringify({
+                ...userData,
+                token: data.token || data.access_token,
+                refresh_token: data.refresh_token
+            }));
+
+            return data;
+        } catch (error) {
+            console.error('Token refresh error:', error);
+            // If refresh fails, redirect to login
+            localStorage.removeItem('user');
+            navigate('/login');
+            throw error;
+        }
+    };
+
+    const setupTokenRefresh = (refresh_token) => {
+        // Refresh token every 14 minutes (assuming 15-minute token lifetime)
+        const REFRESH_INTERVAL = 14 * 60 * 1000;
+
+        const intervalId = setInterval(async () => {
+            try {
+                await refreshAccessToken(refresh_token);
+            } catch (error) {
+                clearInterval(intervalId);
+            }
+        }, REFRESH_INTERVAL);
+
+        // Store interval ID to clear it on logout
+        window.tokenRefreshInterval = intervalId;
     };
 
     const handleSubmit = async (e) => {
@@ -47,6 +103,10 @@ const Login = () => {
 
             if (!response.ok) {
                 throw new Error(data.message || 'Login failed');
+            }
+
+            if (!data.data.refresh_token) {
+                throw new Error('No refresh token provided');
             }
 
             await handleLogin(data.data);
