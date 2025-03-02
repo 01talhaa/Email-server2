@@ -208,7 +208,7 @@ const Company = () => {
 
   useEffect(() => {
     fetchCompanies();
-  }, [currentPage, itemsPerPage]); // Add itemsPerPage as dependency
+  }, [currentPage, itemsPerPage]); 
 
   useEffect(() => {
     const userData = localStorage.getItem('user');

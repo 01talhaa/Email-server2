@@ -4,7 +4,7 @@ import { faLink, faCode, faCopy } from '@fortawesome/free-solid-svg-icons';
 import { toast } from 'react-toastify';
 
 const DashboardDetails = () => {
-  const apiEndpoint = 'https://email.jumpintojob.com/api/send-email';
+  const apiEndpoint = 'https://email.jumpintojob.com/api/v1/send-email';
   const samplePayload = {
     company_id: 2,
     smtp_config_id: 3,

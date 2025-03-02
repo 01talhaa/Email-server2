@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { toast } from 'react-hot-toast';
 import { useNavigate } from 'react-router-dom';
-import { getAuthToken } from '../../../utils/auth'; // Add this import
+import { getAuthToken } from '../../../utils/auth';
 
 const API_BASE_URL = 'https://email.jumpintojob.com/api/v1';
 
@@ -13,7 +13,7 @@ const SendEmailModal = ({ isOpen, onClose, companyId, draft, onEmailSent }) => {
     message: draft?.message || '',
     smtp_id: '',
     to_email: '',
-    draft_id: draft?.id || '' // Add draft_id field
+    draft_id: draft?.id || '' 
   });
   const [smtpConfigs, setSmtpConfigs] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
