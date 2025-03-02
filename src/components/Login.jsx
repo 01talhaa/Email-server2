@@ -17,15 +17,17 @@ const Login = () => {
 
     const handleLogin = async (data) => {
         try {
-            // Store both access and refresh tokens
+            // Store user data, but make refresh token optional
             localStorage.setItem('user', JSON.stringify({
                 token: data.token || data.access_token,
-                refresh_token: data.refresh_token,
+                refresh_token: data.refresh_token || null, // Make refresh_token optional
                 ...data
             }));
 
-            // Set up refresh token interval
-            setupTokenRefresh(data.refresh_token);
+            // Only set up token refresh if refresh token exists
+            if (data.refresh_token) {
+                setupTokenRefresh(data.refresh_token);
+            }
 
             login(data);
             navigate('/dashboard');
@@ -36,6 +38,11 @@ const Login = () => {
     };
 
     const refreshAccessToken = async (refresh_token) => {
+        if (!refresh_token) {
+            console.warn('No refresh token available');
+            return null;
+        }
+
         try {
             const response = await fetch(`${API_BASE_URL}/auth/refresh`, {
                 method: 'POST',
@@ -56,20 +63,20 @@ const Login = () => {
             localStorage.setItem('user', JSON.stringify({
                 ...userData,
                 token: data.token || data.access_token,
-                refresh_token: data.refresh_token
+                refresh_token: data.refresh_token || userData.refresh_token
             }));
 
             return data;
         } catch (error) {
             console.error('Token refresh error:', error);
-            // If refresh fails, redirect to login
-            localStorage.removeItem('user');
-            navigate('/login');
-            throw error;
+            return null;
         }
     };
 
+    // Update the setupTokenRefresh function to check if refresh token exists
     const setupTokenRefresh = (refresh_token) => {
+        if (!refresh_token) return; // Don't set up refresh if no token
+
         // Refresh token every 14 minutes (assuming 15-minute token lifetime)
         const REFRESH_INTERVAL = 14 * 60 * 1000;
 
@@ -105,11 +112,12 @@ const Login = () => {
                 throw new Error(data.message || 'Login failed');
             }
 
-            if (!data.data.refresh_token) {
-                throw new Error('No refresh token provided');
-            }
+            // Handle the case where data.data might not exist
+            const userData = data.data || data;
 
-            await handleLogin(data.data);
+            // Allow login even if no refresh token
+            await handleLogin(userData);
+
         } catch (error) {
             setError(error.message);
             toast.error(error.message);
