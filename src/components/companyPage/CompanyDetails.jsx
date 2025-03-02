@@ -619,7 +619,6 @@ const CompanyDetails = () => {
                                 <thead className="bg-gray-50">
                                     <tr>
                                         <th className="px-2 py-1 text-left text-xs font-medium text-gray-500 uppercase">Subject</th>
-                                        <th className="px-2 py-1 text-left text-xs font-medium text-gray-500 uppercase">From</th>
                                         <th className="px-2 py-1 text-left text-xs font-medium text-gray-500 uppercase">To</th>
                                         <th className="px-2 py-1 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
                                         <th className="px-2 py-1 text-left text-xs font-medium text-gray-500 uppercase">Error</th>
@@ -633,9 +632,7 @@ const CompanyDetails = () => {
                                                 <td className="px-2 py-1 whitespace-nowrap text-sm text-gray-900 max-w-xs truncate">
                                                     {email.subject}
                                                 </td>
-                                                <td className="px-2 py-1 whitespace-nowrap text-sm text-gray-900">
-                                                    {email.from_email}
-                                                </td>
+                                                
                                                 <td className="px-2 py-1 whitespace-nowrap text-sm text-gray-900">
                                                     {email.to_email}
                                                 </td>
