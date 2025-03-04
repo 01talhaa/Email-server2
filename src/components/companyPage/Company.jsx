@@ -194,9 +194,12 @@ const Company = () => {
     }
   };
 
-  // Update the handleSubscribe function
+  // Update the handleSubscribe function to properly work with the API
   const handleSubscribe = async (company) => {
     try {
+      setIsLoading(true);
+
+      // Get token for authentication
       const userData = localStorage.getItem('user');
       if (!userData) {
         throw new Error('No authentication token found');
@@ -204,15 +207,17 @@ const Company = () => {
 
       const parsedUser = JSON.parse(userData);
       const token = parsedUser.token || parsedUser.access_token;
-      const userEmail = parsedUser.email;
 
       // If already subscribed, unsubscribe
       if (subscriptionStatus[company.id]) {
         return handleUnsubscribe(company);
       }
 
-      // Ask for email address (default to user's email)
-      const email = prompt("Enter email address for subscription:", userEmail || company.email || "");
+      // Ask for email address (default to company's email if available)
+      const email = prompt(
+        "Enter email address for subscription:",
+        company.email || ""
+      );
 
       if (!email) {
         toast.info("Subscription cancelled");
@@ -225,6 +230,11 @@ const Company = () => {
         toast.error("Please enter a valid email address");
         return;
       }
+
+      console.log("Subscribing with payload:", {
+        company_id: company.id,
+        email: email
+      });
 
       // Make API call
       const response = await fetch(`${API_BASE_URL}/subscribe`, {
@@ -240,27 +250,17 @@ const Company = () => {
       });
 
       const data = await response.json();
+      console.log("Subscribe API response:", data);
 
-      // Special handling for "email already taken" error
       if (!response.ok) {
         if (data.message && data.message.includes('email has already been taken')) {
-          // If it's already taken, it means the user is subscribed
-          toast.info('You are already subscribed to this company');
+          toast.info('This email is already subscribed to this company');
 
-          // Update the UI to show "Unsubscribe"
+          // Update UI to show "Unsubscribe"
           setSubscriptionStatus(prev => ({
             ...prev,
             [company.id]: true
           }));
-
-          // Update session storage
-          try {
-            const subscriptions = JSON.parse(sessionStorage.getItem('subscriptions') || '{}');
-            subscriptions[company.id] = true;
-            sessionStorage.setItem('subscriptions', JSON.stringify(subscriptions));
-          } catch (e) {
-            console.error('Error storing subscription in session:', e);
-          }
 
           return;
         }
@@ -275,7 +275,7 @@ const Company = () => {
         [company.id]: true
       }));
 
-      // Store the subscription locally in sessionStorage as a backup
+      // Store subscription info in session storage as backup
       try {
         const subscriptions = JSON.parse(sessionStorage.getItem('subscriptions') || '{}');
         subscriptions[company.id] = true;
@@ -284,39 +284,23 @@ const Company = () => {
         console.error('Error storing subscription in session:', e);
       }
 
-      // Also try to refresh subscription status from server
-      setTimeout(() => checkSubscriptionStatus(), 500);
+      // Refresh the subscription status from API
+      checkSubscriptionStatus();
 
     } catch (error) {
       console.error('Subscription error:', error);
-
-      // Check for specific error message about email already taken
-      if (error.message && error.message.includes('email has already been taken')) {
-        toast.info('You are already subscribed to this company');
-
-        // Update the UI to show "Unsubscribe"
-        setSubscriptionStatus(prev => ({
-          ...prev,
-          [company.id]: true
-        }));
-
-        // Update session storage
-        try {
-          const subscriptions = JSON.parse(sessionStorage.getItem('subscriptions') || '{}');
-          subscriptions[company.id] = true;
-          sessionStorage.setItem('subscriptions', JSON.stringify(subscriptions));
-        } catch (e) {
-          console.error('Error storing subscription in session:', e);
-        }
-      } else {
-        toast.error(error.message || 'Failed to subscribe');
-      }
+      toast.error(error.message || 'Failed to subscribe');
+    } finally {
+      setIsLoading(false);
     }
   };
 
-  // Fix the unsubscribe function to use company email automatically
+  // Fix the unsubscribe function according to API requirements
   const handleUnsubscribe = async (company) => {
     try {
+      setIsLoading(true);
+
+      // Get token for authentication
       const userData = localStorage.getItem('user');
       if (!userData) {
         throw new Error('No authentication token found');
@@ -325,39 +309,81 @@ const Company = () => {
       const parsedUser = JSON.parse(userData);
       const token = parsedUser.token || parsedUser.access_token;
 
-      // Get user email from localStorage, or use company email
-      // The most important change: use company email if available
-      let email = company.email;
+      // First, fetch company subscribers to find the correct email to unsubscribe
+      const subscribersResponse = await fetch(`${API_BASE_URL}/subscribers?company_id=${company.id}`, {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        }
+      });
 
-      if (!email) {
-        // Fallback to user's email
-        email = parsedUser.email;
+      if (!subscribersResponse.ok) {
+        const errorData = await subscribersResponse.json();
+        throw new Error(errorData.message || 'Failed to fetch subscribers');
+      }
 
-        // If still no email, prompt the user
-        if (!email) {
-          email = prompt("Please enter the email address to unsubscribe:", "");
-          if (!email) {
-            toast.info("Unsubscribe cancelled");
-            return;
-          }
+      const subscribersData = await subscribersResponse.json();
+      console.log("Fetched subscribers data:", subscribersData);
 
-          // Validate email
-          const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-          if (!emailRegex.test(email)) {
-            toast.error("Please enter a valid email address");
-            return;
-          }
+      // Extract subscribers based on different possible API response structures
+      let subscribers = [];
+      if (subscribersData.data && Array.isArray(subscribersData.data.result)) {
+        subscribers = subscribersData.data.result;
+      } else if (Array.isArray(subscribersData.data)) {
+        subscribers = subscribersData.data;
+      } else if (Array.isArray(subscribersData.result)) {
+        subscribers = subscribersData.result;
+      } else {
+        console.error('Unexpected subscribers response format:', subscribersData);
+        subscribers = [];
+      }
+
+      console.log("Parsed subscribers:", subscribers);
+
+      if (subscribers.length === 0) {
+        toast.error('No subscriptions found for this company');
+
+        // Update UI to show "Subscribe" since there are no subscriptions
+        setSubscriptionStatus(prev => ({
+          ...prev,
+          [company.id]: false
+        }));
+
+        return;
+      }
+
+      // If multiple subscriptions, let the user choose which one to unsubscribe
+      let emailToUnsubscribe;
+
+      if (subscribers.length === 1) {
+        // If only one subscription, use that email
+        emailToUnsubscribe = subscribers[0].email;
+      } else {
+        // Create a list of subscriber emails to show in prompt
+        const emailList = subscribers.map(sub => sub.email).join('\n');
+
+        // Ask which email to unsubscribe
+        emailToUnsubscribe = prompt(
+          `Multiple subscriptions found. Enter the email to unsubscribe:\n${emailList}`,
+          subscribers[0].email
+        );
+
+        if (!emailToUnsubscribe) {
+          toast.info("Unsubscribe cancelled");
+          return;
         }
       }
 
       // Confirm unsubscription
-      if (!window.confirm(`Are you sure you want to unsubscribe ${email} from ${company.name}?`)) {
+      if (!window.confirm(`Are you sure you want to unsubscribe ${emailToUnsubscribe}?`)) {
         return;
       }
 
-      console.log(`Attempting to unsubscribe ${email} from company ${company.id}`);
+      console.log("Unsubscribing with payload:", {
+        email: emailToUnsubscribe
+      });
 
-      // Make API call to unsubscribe
+      // Make API call to unsubscribe (API endpoint only needs the email, not company_id)
       const response = await fetch(`${API_BASE_URL}/unsubscribe`, {
         method: 'POST',
         headers: {
@@ -365,12 +391,12 @@ const Company = () => {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          email: email
+          email: emailToUnsubscribe
         })
       });
 
       const data = await response.json();
-      console.log('Unsubscribe response:', data);
+      console.log("Unsubscribe API response:", data);
 
       if (!response.ok) {
         throw new Error(data.message || 'Failed to unsubscribe');
@@ -384,7 +410,7 @@ const Company = () => {
         [company.id]: false
       }));
 
-      // Also update sessionStorage
+      // Update sessionStorage
       try {
         const subscriptions = JSON.parse(sessionStorage.getItem('subscriptions') || '{}');
         subscriptions[company.id] = false;
@@ -393,13 +419,18 @@ const Company = () => {
         console.error('Error updating subscription in session:', e);
       }
 
+      // Refresh the subscription status from API
+      checkSubscriptionStatus();
+
     } catch (error) {
       console.error('Unsubscribe error:', error);
       toast.error(error.message || 'Failed to unsubscribe');
+    } finally {
+      setIsLoading(false);
     }
   };
 
-  // Update the checkSubscriptionStatus function to be more thorough
+  // Update the checkSubscriptionStatus function to properly check if ANY email is subscribed
   const checkSubscriptionStatus = async () => {
     if (companies.length === 0) return;
 
@@ -412,31 +443,12 @@ const Company = () => {
       }
 
       const parsedUser = JSON.parse(userData);
-      console.log('Parsed user data:', parsedUser);
       const token = parsedUser.token || parsedUser.access_token;
-      const email = parsedUser.email;
-
-      console.log('User email from localStorage:', email);
-
-      if (!email) {
-        console.warn('No user email found, cannot check subscription status');
-        // Continue with stored subscription status if available
-        const storedSubscriptions = JSON.parse(sessionStorage.getItem('subscriptions') || '{}');
-        if (Object.keys(storedSubscriptions).length > 0) {
-          setSubscriptionStatus(prev => ({
-            ...prev,
-            ...storedSubscriptions
-          }));
-        }
-        return;
-      }
-
-      console.log('Checking subscription status for email:', email);
 
       // Create a new object to store subscription status
       const newStatus = {};
 
-      // For each company, check if the user is subscribed
+      // For each company, check if there are any subscribers (don't filter by user email)
       for (const company of companies) {
         try {
           const response = await fetch(`${API_BASE_URL}/subscribers?company_id=${company.id}`, {
@@ -450,28 +462,23 @@ const Company = () => {
           console.log(`Subscription data for company ${company.id}:`, data);
 
           if (response.ok) {
-            let isSubscribed = false;
+            // Extract subscribers based on different possible API response structures
+            let subscribers = [];
 
-            // Try different response formats
-            if (data.data && data.data.result) {
-              isSubscribed = data.data.result.some(sub =>
-                sub.email && sub.email.toLowerCase() === email.toLowerCase() &&
-                (sub.enabled === true || sub.enabled === 1)
-              );
-            } else if (data.data) {
-              isSubscribed = Array.isArray(data.data) && data.data.some(sub =>
-                sub.email && sub.email.toLowerCase() === email.toLowerCase() &&
-                (sub.enabled === true || sub.enabled === 1)
-              );
-            } else if (data.result) {
-              isSubscribed = data.result.some(sub =>
-                sub.email && sub.email.toLowerCase() === email.toLowerCase() &&
-                (sub.enabled === true || sub.enabled === 1)
-              );
+            if (data.data && Array.isArray(data.data.result)) {
+              subscribers = data.data.result;
+            } else if (Array.isArray(data.data)) {
+              subscribers = data.data;
+            } else if (Array.isArray(data.result)) {
+              subscribers = data.result;
             }
 
-            console.log(`Company ${company.id} subscription status:`, isSubscribed);
-            newStatus[company.id] = isSubscribed;
+            // Check if there are any enabled subscribers
+            const hasActiveSubscribers = subscribers.length > 0 &&
+              subscribers.some(sub => sub.enabled === true || sub.enabled === 1);
+
+            console.log(`Company ${company.id} has active subscribers:`, hasActiveSubscribers);
+            newStatus[company.id] = hasActiveSubscribers;
           }
         } catch (err) {
           console.error(`Error checking subscription for company ${company.id}:`, err);
@@ -480,10 +487,12 @@ const Company = () => {
 
       console.log('Final subscription status:', newStatus);
       setSubscriptionStatus(newStatus);
+
+      // Store the updated status in sessionStorage
+      sessionStorage.setItem('subscriptions', JSON.stringify(newStatus));
+
     } catch (error) {
       console.error('Error in checkSubscriptionStatus:', error);
-    } finally {
-      setIsLoading(false);
     }
   };
 
