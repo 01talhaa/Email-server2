@@ -4,6 +4,8 @@ import { toast } from 'react-hot-toast';
 import SendEmailModal from './modals/SendEmailModal';
 import CreateDraftModal from './modals/CreateDraftModal';
 import CreateSmtpModal from './modals/CreateSmtpModal';
+import CreateTemplateModal from './modals/CreateTemplateModal';
+import EditTemplateModal from './modals/EditTemplateModal';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import {
     faEnvelope,
@@ -14,7 +16,10 @@ import {
     faPlusCircle,
     faSyncAlt,
     faArrowLeft,
-    faSpinner
+    faSpinner,
+    faFileCode,
+    faEdit,
+    faTrash
 } from '@fortawesome/free-solid-svg-icons';
 
 const API_BASE_URL = 'https://email.jumpintojob.com/api/v1';
@@ -86,16 +91,21 @@ const CompanyDetails = () => {
     const [showSendEmailModal, setShowSendEmailModal] = useState(false);
     const [showDraftModal, setShowDraftModal] = useState(false);
     const [showSmtpModal, setShowSmtpModal] = useState(false);
+    const [showTemplateModal, setShowTemplateModal] = useState(false);
+    const [showEditTemplateModal, setShowEditTemplateModal] = useState(false);
     const [selectedDraft, setSelectedDraft] = useState(null);
     const [smtpConfigs, setSmtpConfigs] = useState([]);
     const [selectedSmtp, setSelectedSmtp] = useState(null);
     const [selectedHostFilter, setSelectedHostFilter] = useState('all');
+    const [templates, setTemplates] = useState([]);
+    const [selectedTemplate, setSelectedTemplate] = useState(null);
 
     const [pagination, setPagination] = useState({
         sent: { currentPage: 1, totalPages: 1, itemsPerPage: 10 },
         inbox: { currentPage: 1, totalPages: 1, itemsPerPage: 10 },
         drafts: { currentPage: 1, totalPages: 1, itemsPerPage: 10 },
-        smtp: { currentPage: 1, totalPages: 1, itemsPerPage: 10 }
+        smtp: { currentPage: 1, totalPages: 1, itemsPerPage: 10 },
+        templates: { currentPage: 1, totalPages: 1, itemsPerPage: 10 } // Add this line
     });
 
     const handlePageChange = (tab, newPage) => {
@@ -308,6 +318,42 @@ const CompanyDetails = () => {
         }
     };
 
+    // Add fetchTemplates function
+    const fetchTemplates = async () => {
+        try {
+            const token = getAuthToken();
+            const { currentPage, itemsPerPage } = pagination.templates;
+
+            const response = await fetch(`${API_BASE_URL}/templates?company_id=${id}&page=${currentPage}&limit=${itemsPerPage}`, {
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Content-Type': 'application/json',
+                }
+            });
+
+            const data = await response.json();
+
+            if (!response.ok) {
+                throw new Error(data.message || 'Failed to fetch templates');
+            }
+
+            if (data.success && data.data) {
+                setTemplates(data.data.result || []);
+                setPagination(prev => ({
+                    ...prev,
+                    templates: {
+                        ...prev.templates,
+                        totalPages: data.data.meta?.totalPage || 1
+                    }
+                }));
+            }
+        } catch (error) {
+            console.error('Templates fetch error:', error);
+            toast.error(error.message);
+            setTemplates([]);
+        }
+    };
+
     const getUniqueHosts = () => {
         const uniqueHosts = [...new Set(smtpConfigs.map(smtp => smtp.host))];
         return ['all', ...uniqueHosts];
@@ -353,6 +399,8 @@ const CompanyDetails = () => {
             fetchDrafts();
         } else if (activeTab === 'smtp') {
             fetchSmtpConfigs();
+        } else if (activeTab === 'templates') {
+            fetchTemplates(); // Add this line
         }
     }, [
         activeTab,
@@ -364,12 +412,48 @@ const CompanyDetails = () => {
         pagination.drafts.currentPage,
         pagination.drafts.itemsPerPage,
         pagination.smtp.currentPage,
-        pagination.smtp.itemsPerPage
+        pagination.smtp.itemsPerPage,
+        pagination.templates.currentPage, // Add these lines
+        pagination.templates.itemsPerPage
     ]);
 
     const handleUseDraft = (draft) => {
         setSelectedDraft(draft);
         setShowSendEmailModal(true);
+    };
+
+    const handleDeleteTemplate = async (templateId) => {
+        if (!window.confirm('Are you sure you want to delete this template?')) {
+            return;
+        }
+
+        try {
+            setIsLoading(true);
+            const token = getAuthToken();
+
+            const response = await fetch(`${API_BASE_URL}/templates/${templateId}`, {
+                method: 'DELETE',
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Content-Type': 'application/json'
+                }
+            });
+
+            if (!response.ok) {
+                const errorData = await response.json();
+                throw new Error(errorData.message || 'Failed to delete template');
+            }
+
+            // Success - remove template from state
+            setTemplates(templates.filter(template => template.id !== templateId));
+            toast.success('Template deleted successfully');
+
+        } catch (error) {
+            console.error('Delete template error:', error);
+            toast.error(error.message);
+        } finally {
+            setIsLoading(false);
+        }
     };
 
     const renderLogTable = () => {
@@ -632,7 +716,7 @@ const CompanyDetails = () => {
                                                 <td className="px-2 py-1 whitespace-nowrap text-sm text-gray-900 max-w-xs truncate">
                                                     {email.subject}
                                                 </td>
-                                                
+
                                                 <td className="px-2 py-1 whitespace-nowrap text-sm text-gray-900">
                                                     {email.to_email}
                                                 </td>
@@ -666,6 +750,111 @@ const CompanyDetails = () => {
                         </div>
                         <PaginationControls
                             tab="inbox"
+                            pagination={pagination}
+                            onPageChange={handlePageChange}
+                            onItemsPerPageChange={handleItemsPerPageChange}
+                        />
+                    </div>
+                );
+            // Update the templates table section in the renderLogTable function
+
+            case 'templates':
+                return (
+                    <div className="">
+                        <div className="px-2 py-2 bg-white border-b border-gray-200 sm:px-6">
+                            <div className="flex justify-between items-center">
+                                <h3 className="text-lg leading-6 font-medium text-gray-900">
+                                    <FontAwesomeIcon icon={faFileCode} className="mr-2" />
+                                    Email Templates ({templates.length})
+                                </h3>
+                                <div className="flex items-center space-x-2">
+                                    <button
+                                        onClick={fetchTemplates}
+                                        className="inline-flex items-center px-3 py-2 border border-transparent text-sm leading-4 font-medium rounded-md text-blue-700 bg-blue-100 hover:bg-blue-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+                                    >
+                                        <FontAwesomeIcon icon={faSyncAlt} className="mr-2" />
+                                        Refresh
+                                    </button>
+                                    <button
+                                        onClick={() => setShowTemplateModal(true)}
+                                        className="inline-flex items-center px-3 py-2 border border-transparent text-sm leading-4 font-medium rounded-md text-green-700 bg-green-100 hover:bg-green-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500"
+                                    >
+                                        <FontAwesomeIcon icon={faPlusCircle} className="mr-2" />
+                                        Create Template
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                        <div className="overflow-x-auto">
+                            <table className="min-w-full divide-y divide-gray-200">
+                                <thead className="bg-gray-50">
+                                    <tr>
+                                        <th className="px-2 py-1 text-left text-xs font-medium text-gray-500 uppercase">ID</th>
+                                        <th className="px-2 py-1 text-left text-xs font-medium text-gray-500 uppercase">Name</th>
+                                        <th className="px-2 py-1 text-left text-xs font-medium text-gray-500 uppercase">Body</th>
+                                        <th className="px-2 py-1 text-center text-xs font-medium text-gray-500 uppercase">Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody className="bg-white divide-y divide-gray-200">
+                                    {templates && templates.length > 0 ? (
+                                        templates.map((template) => (
+                                            <tr key={template.id}>
+                                                <td className="px-2 py-1 whitespace-nowrap text-sm text-gray-900">{template.id}</td>
+                                                <td className="px-2 py-1 whitespace-nowrap text-sm text-gray-900 font-medium">{template.name}</td>
+                                                <td className="px-2 py-1 whitespace-nowrap text-sm text-gray-500 max-w-xs truncate">
+                                                    {template.body}
+                                                </td>
+                                                <td className="px-2 py-1 whitespace-nowrap text-sm">
+                                                    <div className="flex justify-center space-x-3">
+                                                        <button
+                                                            onClick={() => {
+                                                                setSelectedTemplate(template);
+                                                                setShowEditTemplateModal(true);
+                                                            }}
+                                                            className="inline-flex items-center px-2 py-1 bg-blue-50 text-blue-700 rounded hover:bg-blue-100 transition-colors"
+                                                            title="Edit template"
+                                                        >
+                                                            <FontAwesomeIcon icon={faEdit} className="mr-1" />
+                                                            <span>Edit</span>
+                                                        </button>
+                                                        <button
+                                                            onClick={() => {
+                                                                // Clear any selected draft to avoid conflicts
+                                                                setSelectedDraft(null);
+                                                                // Set the selected template 
+                                                                setSelectedTemplate(template);
+                                                                // Open the modal
+                                                                setShowSendEmailModal(true);
+                                                            }}
+                                                            className="inline-flex items-center px-2 py-1 bg-green-50 text-green-700 rounded hover:bg-green-100 transition-colors"
+                                                            title="Send email with this template"
+                                                        >
+                                                            <FontAwesomeIcon icon={faPaperPlane} className="mr-1" />
+                                                            <span>Send</span>
+                                                        </button>
+                                                        <button
+                                                            onClick={() => handleDeleteTemplate(template.id)}
+                                                            className="inline-flex items-center px-2 py-1 bg-red-50 text-red-700 rounded hover:bg-red-100 transition-colors"
+                                                            title="Delete template"
+                                                        >
+                                                            <FontAwesomeIcon icon={faTrash} />
+                                                        </button>
+                                                    </div>
+                                                </td>
+                                            </tr>
+                                        ))
+                                    ) : (
+                                        <tr>
+                                            <td colSpan="4" className="px-2 py-1 whitespace-nowrap text-center text-sm text-gray-500">
+                                                No templates available. Create one using the "Create Template" button.
+                                            </td>
+                                        </tr>
+                                    )}
+                                </tbody>
+                            </table>
+                        </div>
+                        <PaginationControls
+                            tab="templates"
                             pagination={pagination}
                             onPageChange={handlePageChange}
                             onItemsPerPageChange={handleItemsPerPageChange}
@@ -807,6 +996,16 @@ const CompanyDetails = () => {
                                 <FontAwesomeIcon icon={faCog} className="mr-1" />
                                 SMTP
                             </button>
+                            <button
+                                onClick={() => setActiveTab('templates')}
+                                className={`py-2 px-4 text-sm font-medium border-b-2 ${activeTab === 'templates'
+                                    ? 'border-blue-500 text-blue-600'
+                                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                                    }`}
+                            >
+                                <FontAwesomeIcon icon={faFileCode} className="mr-1" />
+                                Templates
+                            </button>
                         </div>
                         <div className="flex items-center space-x-2 pr-2">
                             <button
@@ -844,15 +1043,23 @@ const CompanyDetails = () => {
             {showSendEmailModal && (
                 <SendEmailModal
                     isOpen={showSendEmailModal}
-                    onClose={() => setShowSendEmailModal(false)}
+                    onClose={() => {
+                        setShowSendEmailModal(false);
+                        setSelectedTemplate(null);
+                        setSelectedDraft(null);
+                    }}
                     companyId={id}
                     draft={selectedDraft}
+                    template={selectedTemplate}
                     onEmailSent={async () => {
+                        if (activeTab === 'sent') {
+                            await fetchSentEmails();
+                        } else if (activeTab === 'inbox') {
+                            await fetchInboxEmails();
+                        }
                         setShowSendEmailModal(false);
-                        await new Promise(resolve => setTimeout(resolve, 1000)); // Wait for email log to be created
-                        await fetchSentEmails(); // Refresh sent emails list
+                        setSelectedTemplate(null);
                         setSelectedDraft(null);
-                        toast.success('Email sent successfully');
                     }}
                 />
             )}
@@ -874,6 +1081,31 @@ const CompanyDetails = () => {
                         setShowSmtpModal(false); // Close the modal after successful creation
                         setActiveTab('smtp'); // Switch to SMTP tab
                         toast.success('SMTP configuration created successfully');
+                    }}
+                />
+            )}
+            {showTemplateModal && (
+                <CreateTemplateModal
+                    isOpen={showTemplateModal}
+                    onClose={() => setShowTemplateModal(false)}
+                    companyId={id}
+                    onTemplateCreated={async () => {
+                        await fetchTemplates(); // Refresh templates list
+                        setShowTemplateModal(false);
+                        toast.success('Email template created successfully');
+                    }}
+                />
+            )}
+            {showEditTemplateModal && (
+                <EditTemplateModal
+                    isOpen={showEditTemplateModal}
+                    onClose={() => setShowEditTemplateModal(false)}
+                    companyId={id}
+                    template={selectedTemplate}
+                    onTemplateUpdated={async () => {
+                        await fetchTemplates(); // Refresh templates list
+                        setShowEditTemplateModal(false);
+                        toast.success('Email template updated successfully');
                     }}
                 />
             )}

@@ -11,7 +11,10 @@ import {
   faEye,
   faSpinner,
   faBuilding,
-  faTrash // Add this
+  faTrash, // Add this
+  faBell, // Add this
+  faCheck,
+  faBellSlash
 } from '@fortawesome/free-solid-svg-icons';
 
 const API_BASE_URL = 'https://email.jumpintojob.com/api/v1';
@@ -29,6 +32,7 @@ const Company = () => {
     const savedItemsPerPage = localStorage.getItem('itemsPerPage');
     return savedItemsPerPage ? parseInt(savedItemsPerPage) : 10;
   });
+  const [subscriptionStatus, setSubscriptionStatus] = useState({});
   const navigate = useNavigate();
   const { user } = useAuth();
 
@@ -190,6 +194,299 @@ const Company = () => {
     }
   };
 
+  // Update the handleSubscribe function
+  const handleSubscribe = async (company) => {
+    try {
+      const userData = localStorage.getItem('user');
+      if (!userData) {
+        throw new Error('No authentication token found');
+      }
+
+      const parsedUser = JSON.parse(userData);
+      const token = parsedUser.token || parsedUser.access_token;
+      const userEmail = parsedUser.email;
+
+      // If already subscribed, unsubscribe
+      if (subscriptionStatus[company.id]) {
+        return handleUnsubscribe(company);
+      }
+
+      // Ask for email address (default to user's email)
+      const email = prompt("Enter email address for subscription:", userEmail || company.email || "");
+
+      if (!email) {
+        toast.info("Subscription cancelled");
+        return;
+      }
+
+      // Validate email
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      if (!emailRegex.test(email)) {
+        toast.error("Please enter a valid email address");
+        return;
+      }
+
+      // Make API call
+      const response = await fetch(`${API_BASE_URL}/subscribe`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          company_id: company.id,
+          email: email
+        })
+      });
+
+      const data = await response.json();
+
+      // Special handling for "email already taken" error
+      if (!response.ok) {
+        if (data.message && data.message.includes('email has already been taken')) {
+          // If it's already taken, it means the user is subscribed
+          toast.info('You are already subscribed to this company');
+
+          // Update the UI to show "Unsubscribe"
+          setSubscriptionStatus(prev => ({
+            ...prev,
+            [company.id]: true
+          }));
+
+          // Update session storage
+          try {
+            const subscriptions = JSON.parse(sessionStorage.getItem('subscriptions') || '{}');
+            subscriptions[company.id] = true;
+            sessionStorage.setItem('subscriptions', JSON.stringify(subscriptions));
+          } catch (e) {
+            console.error('Error storing subscription in session:', e);
+          }
+
+          return;
+        }
+        throw new Error(data.message || 'Failed to subscribe');
+      }
+
+      toast.success(data.message || 'Successfully subscribed');
+
+      // Update subscription status immediately
+      setSubscriptionStatus(prev => ({
+        ...prev,
+        [company.id]: true
+      }));
+
+      // Store the subscription locally in sessionStorage as a backup
+      try {
+        const subscriptions = JSON.parse(sessionStorage.getItem('subscriptions') || '{}');
+        subscriptions[company.id] = true;
+        sessionStorage.setItem('subscriptions', JSON.stringify(subscriptions));
+      } catch (e) {
+        console.error('Error storing subscription in session:', e);
+      }
+
+      // Also try to refresh subscription status from server
+      setTimeout(() => checkSubscriptionStatus(), 500);
+
+    } catch (error) {
+      console.error('Subscription error:', error);
+
+      // Check for specific error message about email already taken
+      if (error.message && error.message.includes('email has already been taken')) {
+        toast.info('You are already subscribed to this company');
+
+        // Update the UI to show "Unsubscribe"
+        setSubscriptionStatus(prev => ({
+          ...prev,
+          [company.id]: true
+        }));
+
+        // Update session storage
+        try {
+          const subscriptions = JSON.parse(sessionStorage.getItem('subscriptions') || '{}');
+          subscriptions[company.id] = true;
+          sessionStorage.setItem('subscriptions', JSON.stringify(subscriptions));
+        } catch (e) {
+          console.error('Error storing subscription in session:', e);
+        }
+      } else {
+        toast.error(error.message || 'Failed to subscribe');
+      }
+    }
+  };
+
+  // Fix the unsubscribe function to use company email automatically
+  const handleUnsubscribe = async (company) => {
+    try {
+      const userData = localStorage.getItem('user');
+      if (!userData) {
+        throw new Error('No authentication token found');
+      }
+
+      const parsedUser = JSON.parse(userData);
+      const token = parsedUser.token || parsedUser.access_token;
+
+      // Get user email from localStorage, or use company email
+      // The most important change: use company email if available
+      let email = company.email;
+
+      if (!email) {
+        // Fallback to user's email
+        email = parsedUser.email;
+
+        // If still no email, prompt the user
+        if (!email) {
+          email = prompt("Please enter the email address to unsubscribe:", "");
+          if (!email) {
+            toast.info("Unsubscribe cancelled");
+            return;
+          }
+
+          // Validate email
+          const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+          if (!emailRegex.test(email)) {
+            toast.error("Please enter a valid email address");
+            return;
+          }
+        }
+      }
+
+      // Confirm unsubscription
+      if (!window.confirm(`Are you sure you want to unsubscribe ${email} from ${company.name}?`)) {
+        return;
+      }
+
+      console.log(`Attempting to unsubscribe ${email} from company ${company.id}`);
+
+      // Make API call to unsubscribe
+      const response = await fetch(`${API_BASE_URL}/unsubscribe`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          email: email
+        })
+      });
+
+      const data = await response.json();
+      console.log('Unsubscribe response:', data);
+
+      if (!response.ok) {
+        throw new Error(data.message || 'Failed to unsubscribe');
+      }
+
+      toast.success(data.message || 'Successfully unsubscribed');
+
+      // Update subscription status immediately in UI
+      setSubscriptionStatus(prev => ({
+        ...prev,
+        [company.id]: false
+      }));
+
+      // Also update sessionStorage
+      try {
+        const subscriptions = JSON.parse(sessionStorage.getItem('subscriptions') || '{}');
+        subscriptions[company.id] = false;
+        sessionStorage.setItem('subscriptions', JSON.stringify(subscriptions));
+      } catch (e) {
+        console.error('Error updating subscription in session:', e);
+      }
+
+    } catch (error) {
+      console.error('Unsubscribe error:', error);
+      toast.error(error.message || 'Failed to unsubscribe');
+    }
+  };
+
+  // Update the checkSubscriptionStatus function to be more thorough
+  const checkSubscriptionStatus = async () => {
+    if (companies.length === 0) return;
+
+    try {
+      console.log('Starting subscription status check...');
+      const userData = localStorage.getItem('user');
+      if (!userData) {
+        console.error('No user data found in localStorage');
+        return;
+      }
+
+      const parsedUser = JSON.parse(userData);
+      console.log('Parsed user data:', parsedUser);
+      const token = parsedUser.token || parsedUser.access_token;
+      const email = parsedUser.email;
+
+      console.log('User email from localStorage:', email);
+
+      if (!email) {
+        console.warn('No user email found, cannot check subscription status');
+        // Continue with stored subscription status if available
+        const storedSubscriptions = JSON.parse(sessionStorage.getItem('subscriptions') || '{}');
+        if (Object.keys(storedSubscriptions).length > 0) {
+          setSubscriptionStatus(prev => ({
+            ...prev,
+            ...storedSubscriptions
+          }));
+        }
+        return;
+      }
+
+      console.log('Checking subscription status for email:', email);
+
+      // Create a new object to store subscription status
+      const newStatus = {};
+
+      // For each company, check if the user is subscribed
+      for (const company of companies) {
+        try {
+          const response = await fetch(`${API_BASE_URL}/subscribers?company_id=${company.id}`, {
+            headers: {
+              'Authorization': `Bearer ${token}`,
+              'Content-Type': 'application/json',
+            }
+          });
+
+          const data = await response.json();
+          console.log(`Subscription data for company ${company.id}:`, data);
+
+          if (response.ok) {
+            let isSubscribed = false;
+
+            // Try different response formats
+            if (data.data && data.data.result) {
+              isSubscribed = data.data.result.some(sub =>
+                sub.email && sub.email.toLowerCase() === email.toLowerCase() &&
+                (sub.enabled === true || sub.enabled === 1)
+              );
+            } else if (data.data) {
+              isSubscribed = Array.isArray(data.data) && data.data.some(sub =>
+                sub.email && sub.email.toLowerCase() === email.toLowerCase() &&
+                (sub.enabled === true || sub.enabled === 1)
+              );
+            } else if (data.result) {
+              isSubscribed = data.result.some(sub =>
+                sub.email && sub.email.toLowerCase() === email.toLowerCase() &&
+                (sub.enabled === true || sub.enabled === 1)
+              );
+            }
+
+            console.log(`Company ${company.id} subscription status:`, isSubscribed);
+            newStatus[company.id] = isSubscribed;
+          }
+        } catch (err) {
+          console.error(`Error checking subscription for company ${company.id}:`, err);
+        }
+      }
+
+      console.log('Final subscription status:', newStatus);
+      setSubscriptionStatus(newStatus);
+    } catch (error) {
+      console.error('Error in checkSubscriptionStatus:', error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   const handleEditClick = (company) => {
     setSelectedCompany(company);
     setIsEditModalOpen(true);
@@ -206,9 +503,17 @@ const Company = () => {
     fetchCompanies();
   }, []);
 
+  // Update the useEffect to call checkSubscriptionStatus on initial load and refreshes
   useEffect(() => {
-    fetchCompanies();
-  }, [currentPage, itemsPerPage]); 
+    const fetchData = async () => {
+      await fetchCompanies();
+      if (companies.length > 0) {
+        await checkSubscriptionStatus();
+      }
+    };
+
+    fetchData();
+  }, [currentPage, itemsPerPage]);
 
   useEffect(() => {
     const userData = localStorage.getItem('user');
@@ -217,6 +522,59 @@ const Company = () => {
       console.log('Stored token:', parsedUser.token || parsedUser.access_token);
     }
   }, []);
+
+  // Add separate useEffect to restore subscriptions from sessionStorage
+  useEffect(() => {
+    try {
+      const storedSubscriptions = JSON.parse(sessionStorage.getItem('subscriptions') || '{}');
+      if (Object.keys(storedSubscriptions).length > 0) {
+        setSubscriptionStatus(prev => ({
+          ...prev,
+          ...storedSubscriptions
+        }));
+      }
+    } catch (e) {
+      console.error('Error restoring subscriptions from session:', e);
+    }
+  }, []);
+
+  // Add a new helper function to check the stored subscription status
+  const getStoredSubscriptionStatus = () => {
+    try {
+      return JSON.parse(sessionStorage.getItem('subscriptions') || '{}');
+    } catch (e) {
+      console.error('Error reading stored subscriptions:', e);
+      return {};
+    }
+  };
+
+  // Update the useEffect for initial load to be more reliable
+  useEffect(() => {
+    const initialize = async () => {
+      // First, try to restore from session storage
+      const storedSubscriptions = getStoredSubscriptionStatus();
+      if (Object.keys(storedSubscriptions).length > 0) {
+        setSubscriptionStatus(storedSubscriptions);
+      }
+
+      // Then fetch companies
+      await fetchCompanies();
+
+      // After companies are loaded, try to check subscription status
+      if (companies.length > 0) {
+        checkSubscriptionStatus();
+      }
+    };
+
+    initialize();
+  }, []);
+
+  // Add a separate useEffect that only depends on companies change
+  useEffect(() => {
+    if (companies.length > 0) {
+      checkSubscriptionStatus();
+    }
+  }, [companies]);
 
   return (
     <div className="">
@@ -319,6 +677,22 @@ const Company = () => {
                           <FontAwesomeIcon icon={faTrash} className="h-4 w-4 mr-1" />
                           Delete
                         </button>
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleSubscribe(company);
+                          }}
+                          className={`flex items-center ${subscriptionStatus[company.id]
+                            ? 'text-red-600 hover:text-red-900'
+                            : 'text-blue-600 hover:text-blue-900'
+                            }`}
+                        >
+                          <FontAwesomeIcon
+                            icon={subscriptionStatus[company.id] ? faBellSlash : faBell}
+                            className="h-4 w-4 mr-1"
+                          />
+                          {subscriptionStatus[company.id] ? 'Unsubscribe' : 'Subscribe'}
+                        </button>
                       </div>
                     </td>
                   </tr>
@@ -352,8 +726,8 @@ const Company = () => {
                     onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
                     disabled={currentPage === 1}
                     className={`px-4 py-2 text-sm font-medium rounded-md ${currentPage === 1
-                        ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
-                        : 'bg-white text-gray-700 hover:bg-gray-50 border border-gray-300'
+                      ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                      : 'bg-white text-gray-700 hover:bg-gray-50 border border-gray-300'
                       }`}
                   >
                     Previous
@@ -364,8 +738,8 @@ const Company = () => {
                         key={index + 1}
                         onClick={() => setCurrentPage(index + 1)}
                         className={`px-4 py-2 text-sm font-medium rounded-md ${currentPage === index + 1
-                            ? 'bg-blue-500 text-white'
-                            : 'bg-white text-gray-700 hover:bg-gray-50 border border-gray-300'
+                          ? 'bg-blue-500 text-white'
+                          : 'bg-white text-gray-700 hover:bg-gray-50 border border-gray-300'
                           }`}
                       >
                         {index + 1}
@@ -376,8 +750,8 @@ const Company = () => {
                     onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
                     disabled={currentPage === totalPages}
                     className={`px-4 py-2 text-sm font-medium rounded-md ${currentPage === totalPages
-                        ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
-                        : 'bg-white text-gray-700 hover:bg-gray-50 border border-gray-300'
+                      ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                      : 'bg-white text-gray-700 hover:bg-gray-50 border border-gray-300'
                       }`}
                   >
                     Next

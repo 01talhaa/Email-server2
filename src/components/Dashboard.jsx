@@ -9,6 +9,8 @@ import { useAuth } from '../context/AuthContext';
 import DocumentUrl from './documentation/DocumentUrl';
 import DocumentCompany from './documentation/DocumentCompany';
 import DocumentCompanyDetails from './documentation/DocumentCompanyDetails';
+import Subscribe from './Subscribe';
+
 
 const Dashboard = () => {
   const { user } = useAuth();
@@ -22,6 +24,7 @@ const Dashboard = () => {
             <Route path="/" element={<EmailList />} />
             <Route path="/email/:id" element={<EmailDetail />} />
             <Route path="/company" element={<Company />} />
+            <Route path="/subscribed" element={<Subscribe />} />
             <Route path="/company/:id" element={<CompanyDetails />} />
             <Route path="/docs/url" element={<DocumentUrl />} />
             <Route path="/docs/company" element={<DocumentCompany />} />
